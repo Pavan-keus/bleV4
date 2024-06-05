@@ -1,9 +1,9 @@
 package Ble;
 
 public class Communication {
-    int MessageId;
-    int MessageType;
-    int FromMessage;
+    int messageType;
+    int fromMessage;
     Object []data;
     int messageSize;
+    int Error;
 }
