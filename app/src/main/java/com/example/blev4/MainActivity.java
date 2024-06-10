@@ -18,6 +18,7 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -33,6 +34,92 @@ public class MainActivity extends AppCompatActivity implements bleToPlugin {
 
     private final List<String> permissionsToRequest = new ArrayList<>();
     Button button;
+    JSONObject write(String bleaddress,String characteristic,byte[] data){
+        JSONObject object = new JSONObject();
+        JSONArray array = new JSONArray();
+        for(byte dataByte : data)
+            array.put(dataByte);
+        try {
+            object.put("Type",Constants.WRITE_CHARACTERISTIC_REQUEST);
+            JSONObject dataObject = new JSONObject();
+            dataObject.put("deviceId",bleaddress);
+            dataObject.put("characteristic",characteristic);
+            dataObject.put("value",array);
+            object.put("Data",dataObject);
+        } catch (JSONException e) {
+            throw new RuntimeException(e);
+        };
+        return object;
+    }
+    JSONObject read(String bleaddress,String characteristic) {
+        JSONObject object = new JSONObject();
+        try {
+            object.put("Type",Constants.READ_CHARACTERISTIC_REQUEST);
+            JSONObject dataObject = new JSONObject();
+            dataObject.put("deviceId",bleaddress);
+            dataObject.put("characteristic",characteristic);
+            object.put("Data",dataObject);
+        } catch (JSONException e) {
+            throw new RuntimeException(e);
+        };
+        return object;
+    }
+    JSONObject notify(String bleaddress,String characteristic) {
+        JSONObject object = new JSONObject();
+
+        try {
+            object.put("Type",Constants.NOTIFY_CHARACTERISTIC_REQUEST);
+            JSONObject dataObject = new JSONObject();
+            dataObject.put("deviceId",bleaddress);
+            dataObject.put("characteristic",characteristic);
+            object.put("Data",dataObject);
+        } catch (JSONException e) {
+            throw new RuntimeException(e);
+        };
+        return object;
+    }
+    JSONObject setMtu(String bleAddress , int mtu){
+        JSONObject object = new JSONObject();
+        try {
+            object.put("Type",Constants.SET_MTU_REQUEST);
+            JSONObject dataObject = new JSONObject();
+            dataObject.put("deviceId",bleAddress);
+            dataObject.put("mtu",mtu);
+            object.put("Data",dataObject);
+        } catch (JSONException e) {
+            throw new RuntimeException(e);
+        };
+        return object;
+    }
+    JSONObject setPriority(String bleAddress , int Priority){
+        JSONObject object = new JSONObject();
+        try {
+            object.put("Type",Constants.SET_PRIORITY_REQUEST);
+            JSONObject dataObject = new JSONObject();
+            dataObject.put("deviceId",bleAddress);
+            dataObject.put("priority",Priority);
+            object.put("Data",dataObject);
+        } catch (JSONException e) {
+            throw new RuntimeException(e);
+        };
+        return object;
+    }
+
+    JSONObject setPhy(String bleAddress , int phy){
+        JSONObject object = new JSONObject();
+        try {
+            object.put("Type",Constants.SET_PHY_REQUEST);
+            JSONObject dataObject = new JSONObject();
+            dataObject.put("deviceId",bleAddress);
+            dataObject.put("phy",phy);
+            object.put("Data",dataObject);
+        } catch (JSONException e) {
+            throw new RuntimeException(e);
+        };
+        return object;
+    }
+
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -49,13 +136,6 @@ public class MainActivity extends AppCompatActivity implements bleToPlugin {
         } catch (JSONException e) {
             throw new RuntimeException(e);
         }
-        JSONObject bleDeIntialiation = new JSONObject();
-        try {
-            bleDeIntialiation.put("Type",Constants.DEINITIALIZE_BLE_REQUEST);
-            bleDeIntialiation.put("Data",new Object[0]);
-        } catch (JSONException e) {
-            throw new RuntimeException(e);
-        }
         JSONObject bleStartScan = new JSONObject();
         try {
             bleStartScan.put("Type",Constants.STARTSCAN_REQUEST);
@@ -63,43 +143,69 @@ public class MainActivity extends AppCompatActivity implements bleToPlugin {
         } catch (JSONException e) {
             throw new RuntimeException(e);
         }
+        String channel = "f000a005-0451-4000-b000-000000000000";
+        String sendbeacon = "f000a002-0451-4000-b000-000000000000";
+        String ntwkState = "f000a001-0451-4000-b000-000000000000";
+        JSONObject channel_read = read("0C:EC:80:95:AA:D8",channel);
+        JSONObject channel_write = write("0C:EC:80:95:AA:D8",channel,new byte[]{0x26});
+        JSONObject sendbeacon_write = write("0C:EC:80:95:AA:D8",sendbeacon,new byte[]{0x01});
+        JSONObject nwkstate_notify =  notify("0C:EC:80:95:AA:D8",ntwkState);
+        JSONObject mtu = setMtu("0C:EC:80:95:AA:D8",256);
+        JSONObject phy = setPhy("0C:EC:80:95:AA:D8",Constants.PHY_LE_2M);
+        JSONObject priority = setPriority("0C:EC:80:95:AA:D8",Constants.CONNECTION_PRIORITY_HIGH);
         communicator.sendMessageToBle(bleIntialiation);
-        JSONObject bleStopScan = new JSONObject();
+        communicator.sendMessageToBle(bleStartScan);
+
+        JSONObject connectDevice = new JSONObject();
         try {
-            bleStopScan.put("Type",Constants.STOPSCAN_REQUEST);
-            bleStopScan.put("Data",new Object[0]);
+            connectDevice.put("Type",Constants.CONNECT_REQUEST);
+            JSONObject data = new JSONObject();
+            data.put("deviceId","0C:EC:80:95:AA:D8");
+            connectDevice.put("Data",data);
         } catch (JSONException e) {
             throw new RuntimeException(e);
-            }
-        JSONObject blegetDevices = new JSONObject();
-        try {
-            blegetDevices.put("Type",Constants.LISTDEVICE_REQUEST);
-            blegetDevices.put("Data",new Object[0]);
-        } catch (JSONException e) {
-            throw new RuntimeException(e);
+        }
+
+        JSONObject disconnectDevice = new JSONObject();
+        try{
+            disconnectDevice.put("Type",Constants.DISCONNECT_REQUEST);
+            JSONObject data = new JSONObject();
+            data.put("deviceId","0C:EC:80:95:AA:D8");
+            disconnectDevice.put("Data",data);
+        }
+        catch (Exception e){
+            e.printStackTrace();
         }
         button.setOnClickListener(new View.OnClickListener() {
             int count = 0;
             @Override
             public void onClick(View v) {
-                 if(count % 2 ==0)
-                     communicator.sendMessageToBle(bleStartScan);
-                 else
-                     communicator.sendMessageToBle(bleStopScan);
-                 count++;
+                if(count %2 == 0)
+                 communicator.sendMessageToBle(connectDevice);
+                else
+                    communicator.sendMessageToBle(disconnectDevice);
+                count++;
             }
         });
         new Thread(new Runnable() {
             @Override
             public void run() {
-                while(true){
+
                     try {
-                        Thread.sleep(1000);
-                        communicator.sendMessageToBle(blegetDevices);
+                        Thread.sleep(2000 );
+                        communicator.sendMessageToBle(connectDevice);
+                        Thread.sleep(5000);
+                        communicator.sendMessageToBle(mtu);
+                        Thread.sleep(2000);
+                        communicator.sendMessageToBle(phy);
+                        Thread.sleep(2000);
+                        communicator.sendMessageToBle(priority);
+                        Thread.sleep(3000);
+
                     } catch (InterruptedException e) {
                         throw new RuntimeException(e);
                     }
-                }
+
             }
         }).start();
         checkAndRequestPermissions();
@@ -205,5 +311,50 @@ public class MainActivity extends AppCompatActivity implements bleToPlugin {
         } catch (JSONException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    @Override
+    public void bleConnectDevice(JSONObject response) {
+        Log.e(Constants.Log,response.toString());
+    }
+
+    @Override
+    public void bleDisconnectDevice(JSONObject response) {
+        Log.e(Constants.Log,response.toString());
+    }
+
+    @Override
+    public void bleWriteCharacteristic(JSONObject response) {
+        Log.e(Constants.Log,response.toString());
+    }
+
+    @Override
+    public void bleReadCharacteristic(JSONObject response) {
+        Log.e(Constants.Log,response.toString());
+    }
+
+    @Override
+    public void bleNotifyCharacteristic(JSONObject response) {
+        Log.e(Constants.Log,response.toString());
+    }
+
+    @Override
+    public void blesetMtu(JSONObject response) {
+        Log.e(Constants.Log,response.toString());
+    }
+
+    @Override
+    public void blesetPhy(JSONObject response) {
+        Log.e(Constants.Log,response.toString());
+    }
+
+    @Override
+    public void bleNotifyCharacteristicData(JSONObject response) {
+        Log.e(Constants.Log,response.toString());
+    }
+
+    @Override
+    public void blesetPriority(JSONObject response) {
+        Log.e(Constants.Log,response.toString());
     }
 }

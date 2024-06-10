@@ -63,6 +63,59 @@ public class pluginCommunicator extends Thread {
                         bleMessage.messageSize = 0;
                         Common.bleUtil_Queue.put(bleMessage);
                         break;
+                    case Constants.CONNECT_REQUEST:
+                        bleMessage.messageType = Constants.CONNECT_REQUEST;
+                        bleMessage.data = new Object[]{message.getJSONObject("Data").getString("deviceId")};
+                        bleMessage.messageSize = 1;
+                        Common.bleUtil_Queue.put(bleMessage);
+                        break;
+                    case Constants.DISCONNECT_REQUEST:
+                        bleMessage.messageType = Constants.DISCONNECT_REQUEST;
+                        bleMessage.data = new Object[]{message.getJSONObject("Data").getString("deviceId")};
+                        bleMessage.messageSize = 1;
+                        Common.bleUtil_Queue.put(bleMessage);
+                        break;
+                    case Constants.WRITE_CHARACTERISTIC_REQUEST:
+                        bleMessage.messageType = Constants.WRITE_CHARACTERISTIC_REQUEST;
+                        JSONArray valueArray = message.getJSONObject("Data").getJSONArray("value");
+                        byte[] data = new byte[valueArray.length()];
+                        for(int i=0;i<valueArray.length();i++){
+                            data[i] = (byte)valueArray.getInt(i);
+                        }
+                        bleMessage.data = new Object[]{message.getJSONObject("Data").getString("deviceId"),data,message.getJSONObject("Data").getString("characteristic")};
+                        bleMessage.messageSize = 3;
+                        Common.bleUtil_Queue.put(bleMessage);
+                        break;
+                    case Constants.READ_CHARACTERISTIC_REQUEST:
+                        bleMessage.messageType = Constants.READ_CHARACTERISTIC_REQUEST;
+                        bleMessage.data = new Object[]{message.getJSONObject("Data").getString("deviceId"),message.getJSONObject("Data").getString("characteristic")};
+                        bleMessage.messageSize = 2;
+                        Common.bleUtil_Queue.put(bleMessage);
+                        break;
+                    case Constants.NOTIFY_CHARACTERISTIC_REQUEST:
+                        bleMessage.messageType = Constants.NOTIFY_CHARACTERISTIC_REQUEST;
+                        bleMessage.data = new Object[]{message.getJSONObject("Data").getString("deviceId"),message.getJSONObject("Data").getString("characteristic")};
+                        bleMessage.messageSize = 2;
+                        Common.bleUtil_Queue.put(bleMessage);
+                        break;
+                    case Constants.SET_MTU_REQUEST:
+                        bleMessage.messageType = Constants.SET_MTU_REQUEST;
+                        bleMessage.data = new Object[]{message.getJSONObject("Data").getString("deviceId"),message.getJSONObject("Data").getInt("mtu")};
+                        bleMessage.messageSize = 2;
+                        Common.bleUtil_Queue.put(bleMessage);
+                        break;
+                    case Constants.SET_PRIORITY_REQUEST:
+                        bleMessage.messageType = Constants.SET_PRIORITY_REQUEST;
+                        bleMessage.data = new Object[]{message.getJSONObject("Data").getString("deviceId"),message.getJSONObject("Data").getInt("priority")};
+                        bleMessage.messageSize = 2;
+                        Common.bleUtil_Queue.put(bleMessage);
+                        break;
+                    case Constants.SET_PHY_REQUEST:
+                        bleMessage.messageType = Constants.SET_PHY_REQUEST;
+                        bleMessage.data = new Object[]{message.getJSONObject("Data").getString("deviceId"),message.getJSONObject("Data").getInt("phy")};
+                        bleMessage.messageSize = 2;
+                        Common.bleUtil_Queue.put(bleMessage);
+                        break;
                 }
             }catch (Exception e){
                 LogUtil.e(Constants.Error,"error in processing Communication"+e.getMessage());
@@ -175,13 +228,281 @@ public class pluginCommunicator extends Thread {
             LogUtil.e(Constants.Error,"Error in sending List Device Response"+e.getMessage());
         }
     }
+    void sendConnectResponse(String bleAddress){
+         JSONObject response = new JSONObject();
+         JSONObject data = new JSONObject();
+         try{
+             response.put("Type",Constants.CONNECT_RESPONSE);
+             data.put("success",true);
+             data.put("deviceId",bleAddress);
+             response.put("Data",data);
+             pluginInterface.bleConnectDevice(response);
+         }
+         catch(Exception e){
+             LogUtil.e(Constants.Error,"Error in sending Connect Response"+e.getMessage());
+         }
+    }
+    void sendConnectResponse(String bleAddress, int error){
+        JSONObject response = new JSONObject();
+        JSONObject data = new JSONObject();
+        try{
+            response.put("Type",Constants.CONNECT_RESPONSE);
+            data.put("success",false);
+            data.put("deviceId",bleAddress);
+            data.put("reason",error);
+            response.put("Data",data);
+            pluginInterface.bleConnectDevice(response);
+        }
+        catch(Exception e){
+            LogUtil.e(Constants.Error,"Error in sending Connect Response"+e.getMessage());
+        }
+    }
+    void sendDisconnectResponse(String bleAddress){
+        JSONObject response = new JSONObject();
+        JSONObject data = new JSONObject();
+        try{
+            response.put("Type",Constants.DISCONNECT_RESPONSE);
+            data.put("deviceId",bleAddress);
+            data.put("success",true);
+            response.put("Data",data);
+            pluginInterface.bleDisconnectDevice(response);
+        }
+        catch(Exception e){
+            LogUtil.e(Constants.Error,"Error in sending disConnect Response"+e.getMessage());
+        }
+    }
+    void sendWriteCharacteristicResponse(String bleAddress, String characteristic){
+        JSONObject response = new JSONObject();
+        JSONObject data = new JSONObject();
+        try{
+            response.put("Type",Constants.WRITE_CHARACTERISTIC_RESPONSE);
+            data.put("deviceId",bleAddress);
+            data.put("success",true);
+            data.put("characteristic",characteristic);
+            response.put("Data",data);
+            pluginInterface.bleWriteCharacteristic(response);
+        }
+        catch(Exception e){
+            LogUtil.e(Constants.Error,"Error in sending write Response"+e.getMessage());
+        }
+    }
+    void sendReadCharacteristicResponse(String bleAddress, String characteristic, byte[] value){
+        JSONObject response = new JSONObject();
+        JSONObject data = new JSONObject();
+        JSONArray array = new JSONArray();
+        for(int arrayvalue:value){
+            array.put(arrayvalue);
+        }
+        try {
+            response.put("Type", Constants.READ_CHARACTERISTIC_RESPONSE);
+            data.put("deviceId", bleAddress);
+            data.put("success", true);
+            data.put("characteristic", characteristic);
+            data.put("value", array);
+            response.put("Data", data);
+            pluginInterface.bleReadCharacteristic(response);
+        }
+        catch (Exception e){
+            LogUtil.e(Constants.Error,"Error in sending read Response"+e.getMessage());
+        }
+    }
+    void sendNotifyCharacteristicResponse(String bleAddress, String characteristic){
+        JSONObject response = new JSONObject();
+        JSONObject data = new JSONObject();
+        try{
+            response.put("Type",Constants.NOTIFY_CHARACTERISTIC_RESPONSE);
+            data.put("deviceId",bleAddress);
+            data.put("success",true);
+            data.put("characteristic",characteristic);
+            response.put("Data",data);
+            pluginInterface.bleNotifyCharacteristic(response);
+        }
+        catch(Exception e){
+            LogUtil.e(Constants.Error,"Error in sending notify Response"+e.getMessage());
+        }
+    }
+    void sendSetMtuResponse(String bleAddress, int mtu){
+        JSONObject response = new JSONObject();
+        JSONObject data = new JSONObject();
+        try{
+            response.put("Type",Constants.SET_MTU_RESPONSE);
+            data.put("deviceId",bleAddress);
+            data.put("success",true);
+            data.put("mtu",mtu);
+            response.put("Data",data);
+            pluginInterface.blesetMtu(response);
+        }
+        catch(Exception e){
+            LogUtil.e(Constants.Error,"Error in sending mtu Response"+e.getMessage());
+        }
+    }
+    void sendSetPriorityResponse(String bleAddress, int priority){
+        JSONObject response = new JSONObject();
+        JSONObject data = new JSONObject();
+        try{
+            response.put("Type",Constants.SET_PRIORITY_RESPONSE);
+            data.put("deviceId",bleAddress);
+            data.put("success",true);
+            data.put("Priority",priority);
+            response.put("Data",data);
+            pluginInterface.blesetPriority(response);
+        }
+        catch(Exception e){
+            LogUtil.e(Constants.Error,"Error in sending Priority Response"+e.getMessage());
+        }
+    }
+    void setSetPhyResponse(String bleAddress, int phy){
+        JSONObject response = new JSONObject();
+        JSONObject data = new JSONObject();
+        try{
+            response.put("Type",Constants.SET_PHY_RESPONSE);
+            data.put("deviceId",bleAddress);
+            data.put("success",true);
+            data.put("phy",phy);
+            response.put("Data",data);
+            pluginInterface.blesetPhy(response);
+        }
+        catch(Exception e){
+            LogUtil.e(Constants.Error,"Error in sending Phy Response"+e.getMessage());
+        }
+    }
+    void sendDisconnectResponse(String bleAddress,int Error){
+        JSONObject response = new JSONObject();
+        JSONObject data = new JSONObject();
+        try{
+            response.put("Type",Constants.DISCONNECT_RESPONSE);
+            data.put("deviceId",bleAddress);
+            data.put("success",false);
+            data.put("reason",Error);
+            response.put("Data",data);
+            pluginInterface.bleDisconnectDevice(response);
+        }
+        catch(Exception e){
+            LogUtil.e(Constants.Error,"Error in sending disConnect Response"+e.getMessage());
+        }
+    }
+    void sendWriteCharacteristicResponse(String bleAddress, String characteristic,int Error){
+        JSONObject response = new JSONObject();
+        JSONObject data = new JSONObject();
+        try{
+            response.put("Type",Constants.WRITE_CHARACTERISTIC_RESPONSE);
+            data.put("deviceId",bleAddress);
+            data.put("success",false);
+            data.put("reason",Error);
+            data.put("characteristic",characteristic);
+            response.put("Data",data);
+            pluginInterface.bleWriteCharacteristic(response);
+        }
+        catch(Exception e){
+            LogUtil.e(Constants.Error,"Error in sending write Response"+e.getMessage());
+        }
+    }
+    void sendReadCharacteristicResponse(String bleAddress, String characteristic,int Error){
+        JSONObject response = new JSONObject();
+        JSONObject data = new JSONObject();
+        try {
+            response.put("Type", Constants.READ_CHARACTERISTIC_RESPONSE);
+            data.put("deviceId", bleAddress);
+            data.put("success", false);
+            data.put("reason",Error);
+            data.put("characteristic", characteristic);
+            response.put("Data", data);
+            pluginInterface.bleReadCharacteristic(response);
+        }
+        catch (Exception e){
+            LogUtil.e(Constants.Error,"Error in sending read Response"+e.getMessage());
+        }
+    }
+    void sendNotifyCharacteristicResponse(String bleAddress, String characteristic, int Error){
+        JSONObject response = new JSONObject();
+        JSONObject data = new JSONObject();
+        try{
+            response.put("Type",Constants.NOTIFY_CHARACTERISTIC_RESPONSE);
+            data.put("deviceId",bleAddress);
+            data.put("success",false);
+            data.put("reason",Error);
+            data.put("characteristic",characteristic);
+            response.put("Data",data);
+            pluginInterface.bleNotifyCharacteristic(response);
+        }
+        catch(Exception e){
+            LogUtil.e(Constants.Error,"Error in sending notify Response"+e.getMessage());
+        }
+    }
+    void sendSetMtuResponse(String bleAddress, int mtu,int Error){
+        JSONObject response = new JSONObject();
+        JSONObject data = new JSONObject();
+        try{
+            response.put("Type",Constants.SET_MTU_RESPONSE);
+            data.put("deviceId",bleAddress);
+            data.put("success",false);
+            data.put("mtu",mtu);
+            data.put("reason",Error);
+            response.put("Data",data);
+            pluginInterface.blesetMtu(response);
+        }
+        catch(Exception e){
+            LogUtil.e(Constants.Error,"Error in sending mtu Response"+e.getMessage());
+        }
+    }
+    void sendSetPriorityResponse(String bleAddress, int priority,int Error){
+        JSONObject response = new JSONObject();
+        JSONObject data = new JSONObject();
+        try{
+            response.put("Type",Constants.SET_PRIORITY_RESPONSE);
+            data.put("deviceId",bleAddress);
+            data.put("success",false);
+            data.put("reason",Error);
+            data.put("Priority",priority);
+            response.put("Data",data);
+            pluginInterface.blesetPriority(response);
+        }
+        catch(Exception e){
+            LogUtil.e(Constants.Error,"Error in sending Priority Response"+e.getMessage());
+        }
+    }
+    void setSetPhyResponse(String bleAddress, int phy,int Error){
+        JSONObject response = new JSONObject();
+        JSONObject data = new JSONObject();
+        try{
+            response.put("Type",Constants.SET_PHY_RESPONSE);
+            data.put("deviceId",bleAddress);
+            data.put("success",false);
+            data.put("phy",phy);
+            response.put("Data",data);
+            pluginInterface.blesetPhy(response);
+        }
+        catch(Exception e){
+            LogUtil.e(Constants.Error,"Error in sending Phy Response"+e.getMessage());
+        }
+    }
+    void sendNotifyCharacterResponseData(String bleAddress, String characteristic, byte[] value){
+        JSONObject response = new JSONObject();
+        JSONObject data = new JSONObject();
+        JSONArray array = new JSONArray();
+        for(int arrayvalue:value){
+            array.put(arrayvalue);
+        }
+        try {
+            response.put("Type", Constants.NOTIFY_CHARACTERISTIC_UPDATE_RESPONSE);
+            data.put("deviceId", bleAddress);
+            data.put("success", true);
+            data.put("characteristic", characteristic);
+            data.put("value", array);
+            response.put("Data", data);
+            pluginInterface.bleNotifyCharacteristicData(response);
+        }
+        catch (Exception e){
+            LogUtil.e(Constants.Error,"Error in sending notify characteristic data Response"+e.getMessage());
+        }
+    }
     @Override
     public void run() {
         LogUtil.e(Constants.Log,"plugin Communicator Thread Started");
         while(true){
             try {
                 Communication message = Common.pluginCommunicator_Queue.take();
-                LogUtil.e(Constants.Log,"Message Received in Communicator thread");
+                LogUtil.e(Constants.Log,"Message Received in Communicator thread"+message.messageType);
                 switch(message.messageType){
                     case Constants.INITIALIZE_BLE_RESPONSE:
                         sendInitializationResponse();
@@ -208,6 +529,57 @@ public class pluginCommunicator extends Thread {
                             sendListDeviceResponse((ConcurrentHashMap<String,ScanningDevices>)message.data[0]);
                         else
                             sendListDeviceResponse(null);
+                        break;
+                    case Constants.CONNECT_RESPONSE:
+                        if(message.Error == 0)
+                            sendConnectResponse((String)message.data[0]);
+                        else
+                            sendConnectResponse((String)message.data[0],message.Error);
+                        break;
+                    case Constants.DISCONNECT_RESPONSE:
+                        if(message.Error == 0)
+                            sendDisconnectResponse((String)message.data[0]);
+                        else
+                            sendDisconnectResponse((String)message.data[0],message.Error);
+                        break;
+                    case Constants.WRITE_CHARACTERISTIC_RESPONSE:
+                        if(message.Error == 0)
+                            sendWriteCharacteristicResponse((String)message.data[0],(String)message.data[1]);
+                        else
+                            sendWriteCharacteristicResponse((String)message.data[0],(String)message.data[1],message.Error);
+                        break;
+                    case Constants.READ_CHARACTERISTIC_RESPONSE:
+                        if(message.Error == 0)
+                            sendReadCharacteristicResponse((String)message.data[0],(String)message.data[1],(byte[])message.data[2]);
+                        else
+                            sendReadCharacteristicResponse((String)message.data[0],(String)message.data[1],message.Error);
+                        break;
+                    case Constants.NOTIFY_CHARACTERISTIC_RESPONSE:
+                        if(message.Error == 0)
+                            sendNotifyCharacteristicResponse((String)message.data[0],(String)message.data[1]);
+                        else
+                            sendNotifyCharacteristicResponse((String)message.data[0],(String)message.data[1],message.Error);
+                        break;
+                    case Constants.NOTIFY_CHARACTERISTIC_UPDATE_RESPONSE:
+                        sendNotifyCharacterResponseData((String)message.data[0],(String)message.data[1],(byte[]) message.data[2]);
+                        break;
+                    case Constants.SET_MTU_RESPONSE:
+                        if(message.Error == 0)
+                            sendSetMtuResponse((String)message.data[0],(int)message.data[1]);
+                        else
+                            sendSetMtuResponse((String)message.data[0],(int)message.data[1],message.Error);
+                        break;
+                    case Constants.SET_PRIORITY_RESPONSE:
+                        if(message.Error == 0)
+                            sendSetPriorityResponse((String)message.data[0],(int)message.data[1]);
+                        else
+                            sendSetPriorityResponse((String)message.data[0],(int)message.data[1],message.Error);
+                        break;
+                    case Constants.SET_PHY_RESPONSE:
+                        if(message.Error == 0)
+                            setSetPhyResponse((String)message.data[0],(int)message.data[1]);
+                        else
+                            setSetPhyResponse((String)message.data[0],(int)message.data[1],message.Error);
                         break;
                 }
             } catch (Exception e) {

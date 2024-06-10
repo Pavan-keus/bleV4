@@ -163,7 +163,6 @@ public class bleOperations {
         ReleaseUtilSemaphore();
     }
     void addDeviceToList(String deviceAddress, String DeviceName, int rssi, BluetoothDevice bleDevice){
-        LogUtil.e(Constants.Log,"Device added"+deviceAddress + " "+DeviceName + " "+rssi);
         if(devicesList.containsKey(deviceAddress)){
             devicesList.get(deviceAddress).setDeviceName(DeviceName != null ? DeviceName : "Ble Device");
             devicesList.get(deviceAddress).setRssi(rssi);
@@ -349,7 +348,7 @@ public class bleOperations {
         return null;
     }
     BluetoothGatt getDeviceGatt(String DeviceAddress){
-        if(devicesList.containsKey(DeviceAddress))
+        if(devicesList.containsKey(DeviceAddress) && devicesList.get(DeviceAddress).isConnected())
             return devicesList.get(DeviceAddress).getBleDevice();
         return null;
     }
@@ -358,6 +357,9 @@ public class bleOperations {
         @Override
         public void onPhyUpdate(BluetoothGatt gatt, int txPhy, int rxPhy, int status) {
             super.onPhyUpdate(gatt, txPhy, rxPhy, status);
+            SendMessage(Constants.SET_PHY_RESPONSE,new Object[]{gatt.getDevice().getAddress(),txPhy,rxPhy},3,messageFrom);
+            ReleaseUtilSemaphore();
+
         }
 
         @Override
@@ -373,13 +375,17 @@ public class bleOperations {
                 LogUtil.e(Constants.Log,"Device Connected"+Addresss);
                 devicesList.get(Addresss).setConnected(true);
                 devicesList.get(Addresss).setBleDevice(gatt);
+                SendMessage(Constants.CONNECT_RESPONSE,new Object[]{gatt.getDevice().getAddress()},1,Constants.MessageFromBleUtil);
+                ReleaseUtilSemaphore();
                 gatt.discoverServices();
+
+
             }
             else if(newState == BluetoothProfile.STATE_DISCONNECTED){
                 LogUtil.e(Constants.Log,"Device Disconnected"+Addresss);
                 devicesList.get(Addresss).setConnected(false);
                 devicesList.get(Addresss).setBleDevice(null);
-                SendMessage(Constants.DISCONNECT_RESPONSE,new Object[]{Addresss},1,messageFrom);
+                SendMessage(Constants.DISCONNECT_RESPONSE,new Object[]{Addresss},1,Constants.MessageFromBleUtil);
             }
         }
 
@@ -398,45 +404,75 @@ public class bleOperations {
                     for(BluetoothGattCharacteristic characteristic:characteristics){
                         bleCharacteristic bleCharacteristic = new bleCharacteristic();
                         bleCharacteristic.characteristic = characteristic;
+                        bleCharacteristic.messagefrom = Constants.MessageFromBleUtil;
                         devicesList.get(Address).characteristicList.add(bleCharacteristic);
                     }
                 }
 
-                SendMessage(Constants.CONNECT_RESPONSE,new Object[]{gatt.getDevice().getAddress()},1,messageFrom);
+
             }
             else{
                 // device service disconvery failed due to some other reason
                 LogUtil.e(Constants.Error,"Services Discovered Failed");
             }
             // device got succesfully connected leave the semaphore
-            ReleaseUtilSemaphore();
+
         }
 
         @Override
         public void onCharacteristicRead(@NonNull BluetoothGatt gatt, @NonNull BluetoothGattCharacteristic characteristic, @NonNull byte[] value, int status) {
             super.onCharacteristicRead(gatt, characteristic, value, status);
+            int messageFrom = getCharacterMessageFrom(gatt.getDevice().getAddress(),characteristic.getUuid().toString());
+            LogUtil.e(Constants.Log,"Characteristic Read");
+            if(status == BluetoothGatt.GATT_SUCCESS)
+                SendMessage(Constants.READ_CHARACTERISTIC_RESPONSE,new Object[]{gatt.getDevice().getAddress(),characteristic.getUuid().toString(),value},3,messageFrom);
+            else{
+                // something went failed
+                LogUtil.e(Constants.Error,"Characteristic Read Failed");
+            }
+            ReleaseUtilSemaphore();
         }
 
         @Override
         public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
             super.onCharacteristicWrite(gatt, characteristic, status);
-
+            int messageFrom = getCharacterMessageFrom(gatt.getDevice().getAddress(),characteristic.getUuid().toString());
+            LogUtil.e(Constants.Log,"Characteristic Write");
+            if(status == BluetoothGatt.GATT_SUCCESS)
+                SendMessage(Constants.WRITE_CHARACTERISTIC_RESPONSE,new Object[]{gatt.getDevice().getAddress(),characteristic.getUuid().toString()},2,messageFrom);
+            else{
+                // something went failed
+                LogUtil.e(Constants.Error,"Characteristic Write Failed");
+            }
             ReleaseUtilSemaphore();
         }
 
         @Override
         public void onCharacteristicChanged(@NonNull BluetoothGatt gatt, @NonNull BluetoothGattCharacteristic characteristic, @NonNull byte[] value) {
             super.onCharacteristicChanged(gatt, characteristic, value);
+            int messageFrom = getCharacterMessageFrom(gatt.getDevice().getAddress(),characteristic.getUuid().toString());
+            SendMessage(Constants.NOTIFY_CHARACTERISTIC_UPDATE_RESPONSE,new Object[]{gatt.getDevice().getAddress(),characteristic.getUuid().toString(),value},3,messageFrom);
         }
 
         @Override
         public void onDescriptorRead(@NonNull BluetoothGatt gatt, @NonNull BluetoothGattDescriptor descriptor, int status, @NonNull byte[] value) {
             super.onDescriptorRead(gatt, descriptor, status, value);
+
         }
 
         @Override
         public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
             super.onDescriptorWrite(gatt, descriptor, status);
+            int messageFrom = getCharacterMessageFrom(gatt.getDevice().getAddress(),descriptor.getCharacteristic().getUuid().toString());
+            if(status == BluetoothGatt.GATT_SUCCESS){
+                SendMessage(Constants.NOTIFY_CHARACTERISTIC_RESPONSE,new Object[]{gatt.getDevice().getAddress(),descriptor.getCharacteristic().getUuid().toString()},2,messageFrom);
+                LogUtil.e(Constants.Log,"Descriptor Write");
+            }
+            else{
+                // descriptor write failed
+                LogUtil.e(Constants.Error,"Descriptor Write Failed");
+            }
+            ReleaseUtilSemaphore();
         }
 
         @Override
@@ -447,7 +483,17 @@ public class bleOperations {
         @Override
         public void onMtuChanged(BluetoothGatt gatt, int mtu, int status) {
             super.onMtuChanged(gatt, mtu, status);
+            SendMessage(Constants.SET_MTU_RESPONSE,new Object[]{gatt.getDevice().getAddress(),mtu},2,messageFrom);
+            ReleaseUtilSemaphore();
         }
+    }
+    int getCharacterMessageFrom(String Address,String CharacteristicUUid){
+         for(bleCharacteristic characteristic:devicesList.get(Address).characteristicList){
+             if(characteristic.characteristic.getUuid().toString().equalsIgnoreCase(CharacteristicUUid)){
+                 return characteristic.messagefrom;
+             }
+         }
+         return Constants.MessageFromBleUtil;
     }
     void connectToDevice(int MessageFrom,String DeviceAddress){
          BluetoothDevice device  = checkDeviceExists(DeviceAddress);
@@ -457,7 +503,7 @@ public class bleOperations {
          }
          else{
              // null send mssg device not found
-             SendMessage(Constants.CONNECT_RESPONSE,null,0,MessageFrom,Constants.BLE_ADDRESS_NOT_FOUND);
+             SendMessage(Constants.CONNECT_RESPONSE,new Object[]{DeviceAddress},1,MessageFrom,Constants.BLE_ADDRESS_NOT_FOUND);
              ReleaseUtilSemaphore();
          }
     }
@@ -466,17 +512,21 @@ public class bleOperations {
          gattCallback.messageFrom  = MessageFrom;
          if(gatt!=null){
              gatt.disconnect();
-             SendMessage(Constants.CONNECT_RESPONSE,new Object[]{DeviceAddress},1,MessageFrom);
+             ReleaseUtilSemaphore();
          }
          else{
+             LogUtil.e(Constants.Log,"device address not found or not connected");
              SendMessage(Constants.DISCONNECT_RESPONSE,new Object[]{DeviceAddress},1,MessageFrom,Constants.BLE_ADDRESS_NOT_FOUND);
+             ReleaseUtilSemaphore();
          }
-        ReleaseUtilSemaphore();
+
     }
-    BluetoothGattCharacteristic getCharacter(String uuid,String Address){
-            for(bleCharacteristic characteristic:devicesList.get(Address).characteristicList){
+    bleCharacteristic getCharacter(String uuid,String Address){
+          if(devicesList.get(Address).isConnected() == false)
+              return null;
+          for(bleCharacteristic characteristic:devicesList.get(Address).characteristicList){
                 if(characteristic.characteristic.getUuid().toString().equalsIgnoreCase(uuid) == true){
-                    return characteristic.characteristic;
+                    return characteristic;
                 }
             }
             return null;
@@ -484,15 +534,17 @@ public class bleOperations {
     void writeCharacteristic(int MessageFrom,String DeviceAddress,byte[] data,String Characteristicuuid){
         BluetoothGatt gatt = getDeviceGatt(DeviceAddress);
         if(gatt!=null){
-            BluetoothGattCharacteristic characteristic = getCharacter(Characteristicuuid,DeviceAddress);
+            bleCharacteristic characteristic = getCharacter(Characteristicuuid,DeviceAddress);
+            characteristic.messagefrom = MessageFrom;
             if(characteristic!=null){
+
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    gatt.writeCharacteristic(characteristic,data,BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
+                    gatt.writeCharacteristic(characteristic.characteristic,data,BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
                 }
                 else{
-                    characteristic.setValue(data);
-                    characteristic.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
-                    gatt.writeCharacteristic(characteristic);
+                    characteristic.characteristic.setValue(data);
+                    characteristic.characteristic.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
+                    gatt.writeCharacteristic(characteristic.characteristic);
                 }
             }
             else {
@@ -508,9 +560,10 @@ public class bleOperations {
     void readCharacteristic(int MessageFrom,String DeviceAddress,String Characteristicuuid){
         BluetoothGatt gatt = getDeviceGatt(DeviceAddress);
         if(gatt!=null){
-            BluetoothGattCharacteristic characteristic = getCharacter(Characteristicuuid,DeviceAddress);
+            bleCharacteristic characteristic = getCharacter(Characteristicuuid,DeviceAddress);
             if(characteristic!=null){
-                gatt.readCharacteristic(characteristic);
+                characteristic.messagefrom = MessageFrom;
+                gatt.readCharacteristic(characteristic.characteristic);
             }
             else{
                 SendMessage(Constants.READ_CHARACTERISTIC_RESPONSE,new Object[]{DeviceAddress,Characteristicuuid},2,MessageFrom,Constants.BLE_CHARACTER_NOT_FOUND);
@@ -527,10 +580,11 @@ public class bleOperations {
     void notifyCharacteristic(int MessageFrom,String DeviceAddress,String Characteristicuuid){
         BluetoothGatt gatt = getDeviceGatt(DeviceAddress);
         if(gatt!=null){
-            BluetoothGattCharacteristic characteristic = getCharacter(Characteristicuuid,DeviceAddress);
+            bleCharacteristic characteristic = getCharacter(Characteristicuuid,DeviceAddress);
             if(characteristic!=null){
-                gatt.setCharacteristicNotification(characteristic,true);
-                BluetoothGattDescriptor descriptor = characteristic.getDescriptor(CHARACTERISTIC_UPDATE_NOTIFICATION_DESCRIPTOR_UUID);
+                characteristic.messagefrom = MessageFrom;
+                gatt.setCharacteristicNotification(characteristic.characteristic,true);
+                BluetoothGattDescriptor descriptor = characteristic.characteristic.getDescriptor(CHARACTERISTIC_UPDATE_NOTIFICATION_DESCRIPTOR_UUID);
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     gatt.writeDescriptor(descriptor,BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
                 }
@@ -554,6 +608,7 @@ public class bleOperations {
     void setMtu(int MessageFrom,String DeviceAddress,int mtu){
         BluetoothGatt gatt = getDeviceGatt(DeviceAddress);
         if(gatt!=null){
+            gattCallback.messageFrom = MessageFrom;
             gatt.requestMtu(mtu);
         }
         else{
@@ -565,13 +620,27 @@ public class bleOperations {
     void setConnectionPriority(int MessageFrom,String DeviceAddress,int priority){
         BluetoothGatt gatt = getDeviceGatt(DeviceAddress);
         if(gatt!=null && (priority>=0 && priority<=3)){
+            gattCallback.messageFrom = MessageFrom;
             gatt.requestConnectionPriority(priority);
+            SendMessage(Constants.SET_PRIORITY_RESPONSE,new Object[]{DeviceAddress,priority},2,MessageFrom);
         }
         else{
             SendMessage(Constants.SET_PRIORITY_RESPONSE,new Object[]{DeviceAddress,priority},2,MessageFrom,Constants.BLE_ADDRESS_NOT_FOUND);
+        }
+        ReleaseUtilSemaphore();
+    }
+
+    void setPhy(int MessageFrom,String DeviceAddress,int phy) {
+        BluetoothGatt gatt = getDeviceGatt(DeviceAddress);
+
+        if (gatt != null && (phy >= BluetoothDevice.PHY_LE_1M && phy <= BluetoothDevice.PHY_LE_CODED) ){
+            gattCallback.messageFrom = MessageFrom;
+            gatt.setPreferredPhy(phy,phy,BluetoothDevice.PHY_OPTION_S2);
+        }
+        else{
+            SendMessage(Constants.SET_PHY_RESPONSE,new Object[]{DeviceAddress,phy},2,MessageFrom,Constants.BLE_ADDRESS_NOT_FOUND);
             ReleaseUtilSemaphore();
         }
     }
-
 }
 

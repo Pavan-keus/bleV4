@@ -44,6 +44,30 @@ public class bleUtil extends Thread{
                     case Constants.LISTDEVICE_REQUEST:
                         Common.bleOperationsObject.sendScanningdata(Message.fromMessage);
                         break;
+                    case Constants.CONNECT_REQUEST:
+                        Common.bleOperationsObject.connectToDevice(Message.fromMessage,(String)Message.data[0]);
+                        break;
+                    case Constants.DISCONNECT_REQUEST:
+                        Common.bleOperationsObject.DisconnectDevice(Message.fromMessage,(String)Message.data[0]);
+                        break;
+                    case Constants.WRITE_CHARACTERISTIC_REQUEST:
+                        Common.bleOperationsObject.writeCharacteristic(Message.fromMessage,(String)Message.data[0],(byte[])Message.data[1],(String)Message.data[2]);
+                        break;
+                    case Constants.READ_CHARACTERISTIC_REQUEST:
+                        Common.bleOperationsObject.readCharacteristic(Message.fromMessage,(String)Message.data[0],(String)Message.data[1]);
+                        break;
+                    case Constants.NOTIFY_CHARACTERISTIC_REQUEST:
+                        Common.bleOperationsObject.notifyCharacteristic(Message.fromMessage,(String)Message.data[0],(String)Message.data[1]);
+                        break;
+                    case Constants.SET_MTU_REQUEST:
+                        Common.bleOperationsObject.setMtu(Message.fromMessage,(String)Message.data[0],(Integer) Message.data[1]);
+                        break;
+                    case Constants.SET_PHY_REQUEST:
+                        Common.bleOperationsObject.setPhy(Message.fromMessage,(String)Message.data[0],(Integer)Message.data[1]);
+                        break;
+                    case Constants.SET_PRIORITY_REQUEST:
+                        Common.bleOperationsObject.setConnectionPriority(Message.fromMessage,(String)Message.data[0],(Integer) Message.data[1]);
+                        break;
                 }
             } catch (InterruptedException e) {
                 LogUtil.e(Constants.Error,"error caught in util Queue");

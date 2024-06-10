@@ -1,5 +1,7 @@
 package Ble;
 
+import android.bluetooth.BluetoothGatt;
+
 public class Constants {
     // string constants
     public final static String Error = "ble-Error";
@@ -25,7 +27,7 @@ public class Constants {
     public final static int  NOTIFY_CHARACTERISTIC_REQUEST              = 10;
     public final static int  SET_PRIORITY_REQUEST           = 11;
     public final static int  SET_MTU_REQUEST                = 12;
-
+    public final static int  SET_PHY_REQUEST                = 13;
 
 
 
@@ -43,8 +45,10 @@ public class Constants {
     final static int WRITE_CHARACTERISTIC_RESPONSE               = 58;
     final static int READ_CHARACTERISTIC_RESPONSE                = 59;
     final static int NOTIFY_CHARACTERISTIC_RESPONSE              = 60;
-    final static int SET_PRIORITY_RESPONSE       = 61;
-    final static int SET_MTU_RESPONSE            = 62;
+    final static int NOTIFY_CHARACTERISTIC_UPDATE_RESPONSE       = 61;
+    final static int SET_PRIORITY_RESPONSE       = 62;
+    final static int SET_MTU_RESPONSE            = 63;
+    final static int SET_PHY_RESPONSE            = 64;
 
     // error constants
     final static int BLE_NOT_ENABLE            = 100;
@@ -53,4 +57,12 @@ public class Constants {
     final static int BLE_ADDRESS_NOT_FOUND     = 103;
     final static int BLE_CHARACTER_NOT_FOUND   = 104;
 
+    // other Constants
+
+    public static final int PHY_LE_1M = 1;
+    public static final int PHY_LE_2M = 2;
+    public static final int PHY_LE_CODED = 3;
+    public static final int CONNECTION_PRIORITY_BALANCED = 0;
+    public static final int CONNECTION_PRIORITY_HIGH = 1;
+    public static final int CONNECTION_PRIORITY_LOW_POWER = 2;
 }
