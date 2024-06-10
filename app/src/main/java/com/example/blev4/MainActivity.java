@@ -94,7 +94,7 @@ public class MainActivity extends AppCompatActivity implements bleToPlugin {
             public void run() {
                 while(true){
                     try {
-                        Thread.sleep(3000);
+                        Thread.sleep(1000);
                         communicator.sendMessageToBle(blegetDevices);
                     } catch (InterruptedException e) {
                         throw new RuntimeException(e);
@@ -113,6 +113,7 @@ public class MainActivity extends AppCompatActivity implements bleToPlugin {
 
         if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.S){
             permissionsToRequest.add(Manifest.permission.BLUETOOTH_SCAN);
+            permissionsToRequest.add(Manifest.permission.BLUETOOTH_ADVERTISE);
             permissionsToRequest.add(Manifest.permission.BLUETOOTH_CONNECT);
         }
         if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU){

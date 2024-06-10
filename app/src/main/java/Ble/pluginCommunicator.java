@@ -6,6 +6,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 
 public class pluginCommunicator extends Thread {
@@ -142,7 +143,7 @@ public class pluginCommunicator extends Thread {
         }
     }
 
-    void sendListDeviceResponse(HashMap<String,ScanningDevices> devicesList){
+    void sendListDeviceResponse(ConcurrentHashMap<String,ScanningDevices> devicesList){
         try{
             if(devicesList == null){
                 JSONObject response = new JSONObject();
@@ -204,7 +205,7 @@ public class pluginCommunicator extends Thread {
                         break;
                     case Constants.LISTDEVICE_RESPONSE:
                         if(message.messageSize > 0)
-                            sendListDeviceResponse((HashMap<String,ScanningDevices>)message.data[0]);
+                            sendListDeviceResponse((ConcurrentHashMap<String,ScanningDevices>)message.data[0]);
                         else
                             sendListDeviceResponse(null);
                         break;

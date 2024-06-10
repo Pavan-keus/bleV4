@@ -5,10 +5,18 @@ import static android.bluetooth.le.ScanSettings.MATCH_MODE_AGGRESSIVE;
 import static android.content.Context.BLUETOOTH_SERVICE;
 
 
+import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothGatt;
+import android.bluetooth.BluetoothGattCallback;
+import android.bluetooth.BluetoothGattCharacteristic;
+import android.bluetooth.BluetoothGattDescriptor;
+import android.bluetooth.BluetoothGattService;
+import android.bluetooth.BluetoothProfile;
 import android.bluetooth.le.ScanFilter;
 import android.bluetooth.le.ScanRecord;
 import android.bluetooth.le.ScanResult;
 import android.bluetooth.le.ScanSettings;
+import android.os.Build;
 import android.os.ParcelUuid;
 import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
@@ -19,14 +27,24 @@ import android.bluetooth.le.BluetoothLeScanner;
 import android.bluetooth.le.ScanCallback;
 import android.content.Context;
 
+import androidx.annotation.NonNull;
+
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Calendar;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Queue;
+import java.util.Timer;
+import java.util.TimerTask;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 // this file do all the ble operations. for every ble operation there will be a callback available to register
+
 @SuppressLint("MissingPermission")
 public class bleOperations {
     private static final ParcelUuid SERVICE_UUID = ParcelUuid.fromString("00001190-0000-1000-8000-00805F9B34FB");
+    private static final long SCANUPDATEINTERVAL = 2000;
 
     private BluetoothManager bluetoothManager = null;
     private BluetoothAdapter bluetoothAdapter = null;
@@ -34,16 +52,28 @@ public class bleOperations {
     private BluetoothLeScanner bluetoothLeScanner = null;
     private final AdvertiseCallback advertiseCallback = null;
     private ScanCallback scanCallback = null;
+    private final boolean isFilteringEnabled = false;
     Context ApplicationContext;
-
-    private final HashMap<String,ScanningDevices>  devicesList = new HashMap<String,ScanningDevices>();
-
+    ScanSettings settings = null;
+    private static final UUID CHARACTERISTIC_UPDATE_NOTIFICATION_DESCRIPTOR_UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
+    ScanFilter filter = null;
+    List<ScanFilter> scanFilters;
+    boolean isRequested = false;
+    boolean isremovingOffline = false;
+    private ConcurrentHashMap<String,ScanningDevices> devicesList_temp = new ConcurrentHashMap<String,ScanningDevices>();
+    private final ConcurrentHashMap<String,ScanningDevices> devicesList = new ConcurrentHashMap<String,ScanningDevices>();
+    private final Queue<ScanResult> scanResultQueue = new LinkedList<ScanResult>();
+    final bleGattCallbackClass gattCallback = new bleGattCallbackClass();
+    Timer scanDataUpdateTimer = new Timer();
     public bleOperations(Context context){
         this.ApplicationContext = context;
         intializeScanCallback();
     }
     void ReleaseUtilSemaphore(){
         // finally release the semaphore on setting up with the message
+        if(!isRequested)
+            return;
+        isRequested = false;
         Common.bleOperationSemaphore.release();
     }
     // reply back to the messages
@@ -66,7 +96,6 @@ public class bleOperations {
              LogUtil.e(Constants.Log,"Message not send"+FromMessage);
          }
 
-        ReleaseUtilSemaphore();
 
     }
     void SendMessage(int MessageType, Object[] Messagedata, int Messagesize, int FromMessage,int Error){
@@ -89,8 +118,6 @@ public class bleOperations {
             LogUtil.e(Constants.Log,"Message not send"+FromMessage);
         }
 
-        ReleaseUtilSemaphore();
-
     }
     void InitializeBle(int MessageFrom){
         if(bluetoothManager == null){
@@ -102,8 +129,8 @@ public class bleOperations {
         }
         else{
             SendMessage(Constants.INITIALIZE_BLE_RESPONSE,null,0,MessageFrom);
-            ReleaseUtilSemaphore();
         }
+        ReleaseUtilSemaphore();
     }
     boolean isValid(){
         if(!bluetoothAdapter.isEnabled()){
@@ -133,22 +160,49 @@ public class bleOperations {
         bluetoothLeAdvertiser = null;
         bluetoothLeScanner = null;
         SendMessage(Constants.DEINITIALIZE_BLE_RESPONSE,null,0,MessageFrom);
+        ReleaseUtilSemaphore();
     }
-    void addorUpdateDevice(ScanResult scanresult){
-         String deviceAddress = scanresult.getDevice().getAddress();
-         ScanRecord scanRecord = scanresult.getScanRecord();
-         String DeviceName = scanresult.getDevice().getName();
-         int rssi = scanresult.getRssi();
-         if(devicesList.containsKey(deviceAddress)){
+    void addDeviceToList(String deviceAddress, String DeviceName, int rssi, BluetoothDevice bleDevice){
+        LogUtil.e(Constants.Log,"Device added"+deviceAddress + " "+DeviceName + " "+rssi);
+        if(devicesList.containsKey(deviceAddress)){
             devicesList.get(deviceAddress).setDeviceName(DeviceName != null ? DeviceName : "Ble Device");
             devicesList.get(deviceAddress).setRssi(rssi);
+        }
+        else{
+            ScanningDevices device = new ScanningDevices();
+            device.setDeviceName(DeviceName != null ? DeviceName : "Ble Device");
+            device.setRssi(rssi);
+            device.setConnected(false);
+            device.setDiscoveredDevice(bleDevice);
+            devicesList.put(deviceAddress,device);
+        }
+        devicesList.get(deviceAddress).setLastScanResultTime(getTimeinMillis());
+    }
+    void updateDevices(){
+        while(scanResultQueue.size()>0){
+            ScanResult scanresult = scanResultQueue.remove();
+            String deviceAddress = scanresult.getDevice().getAddress();
+            ScanRecord scanRecord = scanresult.getScanRecord();
+            String DeviceName = scanresult.getDevice().getName();
+            int rssi = scanresult.getRssi();
+            addDeviceToList(deviceAddress,DeviceName,rssi,scanresult.getDevice());
+        }
+    }
+    void addorUpdateDevice(ScanResult scanresult){
+         if(isremovingOffline){
+             scanResultQueue.add(scanresult);
          }
          else{
-             ScanningDevices device = new ScanningDevices();
-             device.setDeviceName(DeviceName);
-             device.setRssi(rssi);
-             devicesList.put(deviceAddress,device);
+             String deviceAddress = scanresult.getDevice().getAddress();
+             ScanRecord scanRecord = scanresult.getScanRecord();
+             String DeviceName = scanresult.getDevice().getName();
+             int rssi = scanresult.getRssi();
+             if(!isremovingOffline && scanResultQueue.size() >0){
+                 updateDevices();
+             }
+             addDeviceToList(deviceAddress,DeviceName,rssi,scanresult.getDevice());
          }
+
     }
     void intializeScanCallback(){
         scanCallback = new ScanCallback() {
@@ -173,6 +227,36 @@ public class bleOperations {
             }
         };
     }
+    void buildScanSettings(){
+        if(settings!=null)
+            return;
+        if(isBleExtendedSupported()) {
+            settings   = new ScanSettings.Builder()
+                    .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+                    .setLegacy(false)
+                    .setMatchMode(MATCH_MODE_AGGRESSIVE)
+                    .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
+                    .build();
+            filter = new ScanFilter.Builder()
+                    .setServiceUuid(SERVICE_UUID)
+                    .build();
+            scanFilters = new ArrayList<>();
+            scanFilters.add(filter);
+        }
+        else{
+            settings = new ScanSettings.Builder()
+                    .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+                    .setMatchMode(MATCH_MODE_AGGRESSIVE)
+                    .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
+                    .build();
+            filter = new ScanFilter.Builder()
+                    .setServiceUuid(SERVICE_UUID)
+                    .build();
+            scanFilters = new ArrayList<>();
+            scanFilters.add(filter);
+
+        }
+    }
     void stopScan(int MessageFrom){
         if(bluetoothLeScanner!=null){
             bluetoothLeScanner.flushPendingScanResults(scanCallback);
@@ -183,47 +267,29 @@ public class bleOperations {
             // bluetooth is not initialized
             SendMessage(Constants.STOPSCAN_RESPONSE,null,0,MessageFrom,Constants.BLE_NOT_INITIALIZED);
         }
+        ReleaseUtilSemaphore();
+        stopScanUpdateTimer();
     }
     void startScan(int MessageFrom){
         if(!isValid()){
             // bluetooth is not enabled
             SendMessage(Constants.STARTSCAN_RESPONSE,null,0,MessageFrom,Constants.BLE_NOT_ENABLE);
+            ReleaseUtilSemaphore();
             return;
         }
         if (bluetoothLeScanner != null) {
-            if(isBleExtendedSupported()) {
-                ScanSettings settings = new ScanSettings.Builder()
-                        .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
-                        .setLegacy(false)
-                        .setMatchMode(MATCH_MODE_AGGRESSIVE)
-                        .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
-                        .build();
-                ScanFilter filter = new ScanFilter.Builder()
-                        .setServiceUuid(SERVICE_UUID)
-                        .build();
-                List<ScanFilter> scanFilters = new ArrayList<>();
-                scanFilters.add(filter);
-                bluetoothLeScanner.startScan(scanFilters, settings, scanCallback);
-            }
-            else{
-                ScanSettings settings = new ScanSettings.Builder()
-                        .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
-                        .setMatchMode(MATCH_MODE_AGGRESSIVE)
-                        .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
-                        .build();
-                ScanFilter filter = new ScanFilter.Builder()
-                        .setServiceUuid(SERVICE_UUID)
-                        .build();
-                List<ScanFilter> scanFilters = new ArrayList<>();
-                scanFilters.add(filter);
-                bluetoothLeScanner.startScan(scanFilters, settings, scanCallback);
-            }
+            buildScanSettings();
+            setCurrentTimelines();
+            bluetoothLeScanner.startScan(scanFilters, settings, scanCallback);
             SendMessage(Constants.STARTSCAN_RESPONSE,null,0,MessageFrom);
         }
         else{
             // blutooth is not intialized
             SendMessage(Constants.STARTSCAN_RESPONSE,null,0,MessageFrom,Constants.BLE_NOT_INITIALIZED);
         }
+        ReleaseUtilSemaphore();
+        if(isFilteringEnabled)
+            startScanUpdateTimer();
 
     }
 
@@ -233,7 +299,279 @@ public class bleOperations {
              SendMessage(Constants.LISTDEVICE_RESPONSE,null,0,MessageFrom,Constants.BLE_NO_SCANNING_DATA);
          }
          else{
-            SendMessage(Constants.LISTDEVICE_RESPONSE,new Object[]{devicesList.clone()},1,MessageFrom);
+             if(isremovingOffline)
+                    SendMessage(Constants.LISTDEVICE_RESPONSE,new Object[]{new ConcurrentHashMap<String,ScanningDevices>(devicesList_temp)},1,MessageFrom);
+             else
+                    SendMessage(Constants.LISTDEVICE_RESPONSE,new Object[]{new ConcurrentHashMap<String,ScanningDevices>(devicesList)},1,MessageFrom);
+         }
+        ReleaseUtilSemaphore();
+    }
+
+    void startScanUpdateTimer(){
+         scanDataUpdateTimer.schedule(new TimerTask() {
+             @Override
+             public void run() {
+                 removeOfflineDevices();
+                 startScanUpdateTimer();
+             }
+         },SCANUPDATEINTERVAL);
+    }
+    long getTimeinMillis(){
+        return Calendar.getInstance().getTimeInMillis();
+    }
+    void setCurrentTimelines(){
+        for(ScanningDevices device : devicesList.values()){
+            device.setLastScanResultTime(getTimeinMillis());
+        }
+    }
+    void removeOfflineDevices(){
+         isremovingOffline = true;
+         devicesList_temp = new ConcurrentHashMap<String,ScanningDevices>(devicesList);
+         long currentTime = getTimeinMillis();
+         ConcurrentHashMap<String,ScanningDevices> temp = new ConcurrentHashMap<String,ScanningDevices>(devicesList);
+         for(String key : temp.keySet()){
+             if((!temp.get(key).isConnected()) && ((currentTime - temp.get(key).getLastScanResultTime()) > (SCANUPDATEINTERVAL+1000))){
+                 devicesList.remove(key);
+                 LogUtil.e(Constants.Log,"Device Removed"+key + " "+(currentTime-temp.get(key).getLastScanResultTime())+ " "+temp.get(key).getRssi());
+             }
+         }
+         isremovingOffline = false;
+    }
+    void stopScanUpdateTimer(){
+        scanDataUpdateTimer.cancel();
+        scanDataUpdateTimer = new Timer();
+    }
+    BluetoothDevice checkDeviceExists(String DeviceAddress){
+        if(devicesList.containsKey(DeviceAddress))
+        {
+           return devicesList.get(DeviceAddress).getDiscoveredDevice();
+        }
+        return null;
+    }
+    BluetoothGatt getDeviceGatt(String DeviceAddress){
+        if(devicesList.containsKey(DeviceAddress))
+            return devicesList.get(DeviceAddress).getBleDevice();
+        return null;
+    }
+    class bleGattCallbackClass extends BluetoothGattCallback{
+        int messageFrom;
+        @Override
+        public void onPhyUpdate(BluetoothGatt gatt, int txPhy, int rxPhy, int status) {
+            super.onPhyUpdate(gatt, txPhy, rxPhy, status);
+        }
+
+        @Override
+        public void onPhyRead(BluetoothGatt gatt, int txPhy, int rxPhy, int status) {
+            super.onPhyRead(gatt, txPhy, rxPhy, status);
+        }
+
+        @Override
+        public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
+            super.onConnectionStateChange(gatt, status, newState);
+            String Addresss = gatt.getDevice().getAddress();
+            if(newState == BluetoothProfile.STATE_CONNECTED){
+                LogUtil.e(Constants.Log,"Device Connected"+Addresss);
+                devicesList.get(Addresss).setConnected(true);
+                devicesList.get(Addresss).setBleDevice(gatt);
+                gatt.discoverServices();
+            }
+            else if(newState == BluetoothProfile.STATE_DISCONNECTED){
+                LogUtil.e(Constants.Log,"Device Disconnected"+Addresss);
+                devicesList.get(Addresss).setConnected(false);
+                devicesList.get(Addresss).setBleDevice(null);
+                SendMessage(Constants.DISCONNECT_RESPONSE,new Object[]{Addresss},1,messageFrom);
+            }
+        }
+
+        @Override
+        public void onServicesDiscovered(BluetoothGatt gatt, int status) {
+            super.onServicesDiscovered(gatt, status);
+
+            if(status == BluetoothGatt.GATT_SUCCESS){
+
+                LogUtil.e(Constants.Log,"Services Discovered");
+                String Address = gatt.getDevice().getAddress();
+                List<BluetoothGattService> services = gatt.getServices();
+                for (BluetoothGattService service : services) {
+                    List<BluetoothGattCharacteristic> characteristics = service.getCharacteristics();
+                    // Process characteristics (read, write, identify)
+                    for(BluetoothGattCharacteristic characteristic:characteristics){
+                        bleCharacteristic bleCharacteristic = new bleCharacteristic();
+                        bleCharacteristic.characteristic = characteristic;
+                        devicesList.get(Address).characteristicList.add(bleCharacteristic);
+                    }
+                }
+
+                SendMessage(Constants.CONNECT_RESPONSE,new Object[]{gatt.getDevice().getAddress()},1,messageFrom);
+            }
+            else{
+                // device service disconvery failed due to some other reason
+                LogUtil.e(Constants.Error,"Services Discovered Failed");
+            }
+            // device got succesfully connected leave the semaphore
+            ReleaseUtilSemaphore();
+        }
+
+        @Override
+        public void onCharacteristicRead(@NonNull BluetoothGatt gatt, @NonNull BluetoothGattCharacteristic characteristic, @NonNull byte[] value, int status) {
+            super.onCharacteristicRead(gatt, characteristic, value, status);
+        }
+
+        @Override
+        public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+            super.onCharacteristicWrite(gatt, characteristic, status);
+
+            ReleaseUtilSemaphore();
+        }
+
+        @Override
+        public void onCharacteristicChanged(@NonNull BluetoothGatt gatt, @NonNull BluetoothGattCharacteristic characteristic, @NonNull byte[] value) {
+            super.onCharacteristicChanged(gatt, characteristic, value);
+        }
+
+        @Override
+        public void onDescriptorRead(@NonNull BluetoothGatt gatt, @NonNull BluetoothGattDescriptor descriptor, int status, @NonNull byte[] value) {
+            super.onDescriptorRead(gatt, descriptor, status, value);
+        }
+
+        @Override
+        public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
+            super.onDescriptorWrite(gatt, descriptor, status);
+        }
+
+        @Override
+        public void onReliableWriteCompleted(BluetoothGatt gatt, int status) {
+            super.onReliableWriteCompleted(gatt, status);
+        }
+
+        @Override
+        public void onMtuChanged(BluetoothGatt gatt, int mtu, int status) {
+            super.onMtuChanged(gatt, mtu, status);
+        }
+    }
+    void connectToDevice(int MessageFrom,String DeviceAddress){
+         BluetoothDevice device  = checkDeviceExists(DeviceAddress);
+         gattCallback.messageFrom = MessageFrom;
+         if(device != null){
+             device.connectGatt(ApplicationContext,false,gattCallback);
+         }
+         else{
+             // null send mssg device not found
+             SendMessage(Constants.CONNECT_RESPONSE,null,0,MessageFrom,Constants.BLE_ADDRESS_NOT_FOUND);
+             ReleaseUtilSemaphore();
          }
     }
+    void DisconnectDevice(int MessageFrom,String DeviceAddress){
+         BluetoothGatt gatt = getDeviceGatt(DeviceAddress);
+         gattCallback.messageFrom  = MessageFrom;
+         if(gatt!=null){
+             gatt.disconnect();
+             SendMessage(Constants.CONNECT_RESPONSE,new Object[]{DeviceAddress},1,MessageFrom);
+         }
+         else{
+             SendMessage(Constants.DISCONNECT_RESPONSE,new Object[]{DeviceAddress},1,MessageFrom,Constants.BLE_ADDRESS_NOT_FOUND);
+         }
+        ReleaseUtilSemaphore();
+    }
+    BluetoothGattCharacteristic getCharacter(String uuid,String Address){
+            for(bleCharacteristic characteristic:devicesList.get(Address).characteristicList){
+                if(characteristic.characteristic.getUuid().toString().equalsIgnoreCase(uuid) == true){
+                    return characteristic.characteristic;
+                }
+            }
+            return null;
+    }
+    void writeCharacteristic(int MessageFrom,String DeviceAddress,byte[] data,String Characteristicuuid){
+        BluetoothGatt gatt = getDeviceGatt(DeviceAddress);
+        if(gatt!=null){
+            BluetoothGattCharacteristic characteristic = getCharacter(Characteristicuuid,DeviceAddress);
+            if(characteristic!=null){
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    gatt.writeCharacteristic(characteristic,data,BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
+                }
+                else{
+                    characteristic.setValue(data);
+                    characteristic.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
+                    gatt.writeCharacteristic(characteristic);
+                }
+            }
+            else {
+                SendMessage(Constants.WRITE_CHARACTERISTIC_RESPONSE,new Object[]{DeviceAddress,Characteristicuuid},2,MessageFrom,Constants.BLE_CHARACTER_NOT_FOUND);
+                ReleaseUtilSemaphore();
+            }
+        }
+        else{
+            SendMessage(Constants.WRITE_CHARACTERISTIC_RESPONSE,new Object[]{DeviceAddress,Characteristicuuid},2,MessageFrom,Constants.BLE_ADDRESS_NOT_FOUND);
+            ReleaseUtilSemaphore();
+        }
+    }
+    void readCharacteristic(int MessageFrom,String DeviceAddress,String Characteristicuuid){
+        BluetoothGatt gatt = getDeviceGatt(DeviceAddress);
+        if(gatt!=null){
+            BluetoothGattCharacteristic characteristic = getCharacter(Characteristicuuid,DeviceAddress);
+            if(characteristic!=null){
+                gatt.readCharacteristic(characteristic);
+            }
+            else{
+                SendMessage(Constants.READ_CHARACTERISTIC_RESPONSE,new Object[]{DeviceAddress,Characteristicuuid},2,MessageFrom,Constants.BLE_CHARACTER_NOT_FOUND);
+                ReleaseUtilSemaphore();
+            }
+        }
+        else{
+            SendMessage(Constants.READ_CHARACTERISTIC_RESPONSE,new Object[]{DeviceAddress,Characteristicuuid},2,MessageFrom,Constants.BLE_ADDRESS_NOT_FOUND);
+            ReleaseUtilSemaphore();
+        }
+
+    }
+
+    void notifyCharacteristic(int MessageFrom,String DeviceAddress,String Characteristicuuid){
+        BluetoothGatt gatt = getDeviceGatt(DeviceAddress);
+        if(gatt!=null){
+            BluetoothGattCharacteristic characteristic = getCharacter(Characteristicuuid,DeviceAddress);
+            if(characteristic!=null){
+                gatt.setCharacteristicNotification(characteristic,true);
+                BluetoothGattDescriptor descriptor = characteristic.getDescriptor(CHARACTERISTIC_UPDATE_NOTIFICATION_DESCRIPTOR_UUID);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    gatt.writeDescriptor(descriptor,BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
+                }
+                else{
+                    descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
+                    gatt.writeDescriptor(descriptor);
+                }
+
+            }
+            else{
+                SendMessage(Constants.NOTIFY_CHARACTERISTIC_RESPONSE,new Object[]{DeviceAddress,Characteristicuuid},2,MessageFrom,Constants.BLE_CHARACTER_NOT_FOUND);
+                ReleaseUtilSemaphore();
+            }
+        }
+        else{
+            SendMessage(Constants.NOTIFY_CHARACTERISTIC_RESPONSE,new Object[]{DeviceAddress,Characteristicuuid},2,MessageFrom,Constants.BLE_ADDRESS_NOT_FOUND);
+            ReleaseUtilSemaphore();
+        }
+    }
+
+    void setMtu(int MessageFrom,String DeviceAddress,int mtu){
+        BluetoothGatt gatt = getDeviceGatt(DeviceAddress);
+        if(gatt!=null){
+            gatt.requestMtu(mtu);
+        }
+        else{
+            SendMessage(Constants.SET_MTU_RESPONSE,new Object[]{DeviceAddress,mtu},2,MessageFrom,Constants.BLE_ADDRESS_NOT_FOUND);
+            ReleaseUtilSemaphore();
+        }
+    }
+
+    void setConnectionPriority(int MessageFrom,String DeviceAddress,int priority){
+        BluetoothGatt gatt = getDeviceGatt(DeviceAddress);
+        if(gatt!=null && (priority>=0 && priority<=3)){
+            gatt.requestConnectionPriority(priority);
+        }
+        else{
+            SendMessage(Constants.SET_PRIORITY_RESPONSE,new Object[]{DeviceAddress,priority},2,MessageFrom,Constants.BLE_ADDRESS_NOT_FOUND);
+            ReleaseUtilSemaphore();
+        }
+    }
+
 }
+

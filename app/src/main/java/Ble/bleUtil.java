@@ -13,7 +13,7 @@ public class bleUtil extends Thread{
 
     bleUtil(Context context){
         this.context = context;
-        Common.bleUtil_Queue = new LinkedBlockingQueue<Communication>(50);
+        Common.bleUtil_Queue = new LinkedBlockingQueue<Communication>();
         Common.bleOperationSemaphore = new Semaphore(1);
         Common.bleOperationsObject = new bleOperations(context);
     }
@@ -25,6 +25,7 @@ public class bleUtil extends Thread{
 
             try {
                 Communication Message = Common.bleUtil_Queue.take();
+                Common.bleOperationsObject.isRequested = true;
                 LogUtil.e(Constants.Log,"Message Received in Util "+Message.messageType);
                 Common.bleOperationSemaphore.acquire();
                 switch (Message.messageType){
@@ -47,6 +48,7 @@ public class bleUtil extends Thread{
             } catch (InterruptedException e) {
                 LogUtil.e(Constants.Error,"error caught in util Queue");
                 Common.bleOperationSemaphore.release();
+                Common.bleOperationsObject.isRequested = false;
             }
         }
 
