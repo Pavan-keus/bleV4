@@ -38,6 +38,7 @@ import java.util.Timer;
 import java.util.TimerTask;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Semaphore;
 
 // this file do all the ble operations. for every ble operation there will be a callback available to register
 
@@ -67,6 +68,7 @@ public class bleOperations {
     Timer scanDataUpdateTimer = new Timer();
     public bleOperations(Context context){
         this.ApplicationContext = context;
+        Common.bleOperationSemaphore = new Semaphore(1);
         intializeScanCallback();
     }
     void ReleaseUtilSemaphore(){
@@ -234,6 +236,7 @@ public class bleOperations {
                     .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
                     .setLegacy(false)
                     .setMatchMode(MATCH_MODE_AGGRESSIVE)
+                    .setReportDelay(0)
                     .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
                     .build();
             filter = new ScanFilter.Builder()
@@ -267,7 +270,8 @@ public class bleOperations {
             SendMessage(Constants.STOPSCAN_RESPONSE,null,0,MessageFrom,Constants.BLE_NOT_INITIALIZED);
         }
         ReleaseUtilSemaphore();
-        stopScanUpdateTimer();
+        if(isFilteringEnabled)
+            stopScanUpdateTimer();
     }
     void startScan(int MessageFrom){
         if(!isValid()){
@@ -279,7 +283,8 @@ public class bleOperations {
         if (bluetoothLeScanner != null) {
             buildScanSettings();
             setCurrentTimelines();
-            bluetoothLeScanner.startScan(scanFilters, settings, scanCallback);
+            if(!bluetoothAdapter.isDiscovering())
+                bluetoothLeScanner.startScan(scanFilters, settings, scanCallback);
             SendMessage(Constants.STARTSCAN_RESPONSE,null,0,MessageFrom);
         }
         else{

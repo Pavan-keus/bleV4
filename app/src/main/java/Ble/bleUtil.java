@@ -14,8 +14,8 @@ public class bleUtil extends Thread{
     bleUtil(Context context){
         this.context = context;
         Common.bleUtil_Queue = new LinkedBlockingQueue<Communication>();
-        Common.bleOperationSemaphore = new Semaphore(1);
-        Common.bleOperationsObject = new bleOperations(context);
+
+
     }
 
     @Override

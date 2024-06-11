@@ -28,11 +28,13 @@ import java.util.List;
 import Ble.Constants;
 import Ble.bleToPlugin;
 import Ble.pluginCommunicator;
+import Ble.otaToPlugin;
 
-public class MainActivity extends AppCompatActivity implements bleToPlugin {
+public class MainActivity extends AppCompatActivity implements bleToPlugin,otaToPlugin {
     private static final int REQUEST_PERMISSIONS_CODE = 1;
 
     private final List<String> permissionsToRequest = new ArrayList<>();
+    pluginCommunicator communicator;
     Button button;
     JSONObject write(String bleaddress,String characteristic,byte[] data){
         JSONObject object = new JSONObject();
@@ -122,10 +124,11 @@ public class MainActivity extends AppCompatActivity implements bleToPlugin {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        setTheme(android.R.style.Theme_Material_Light_NoActionBar);
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         button = findViewById(R.id.button);
-        pluginCommunicator communicator = new pluginCommunicator(getApplicationContext(),this);
+        communicator = new pluginCommunicator(getApplicationContext(),this,this);
         communicator.start();
 
         // ble Initialziation
@@ -153,8 +156,7 @@ public class MainActivity extends AppCompatActivity implements bleToPlugin {
         JSONObject mtu = setMtu("0C:EC:80:95:AA:D8",256);
         JSONObject phy = setPhy("0C:EC:80:95:AA:D8",Constants.PHY_LE_2M);
         JSONObject priority = setPriority("0C:EC:80:95:AA:D8",Constants.CONNECTION_PRIORITY_HIGH);
-        communicator.sendMessageToBle(bleIntialiation);
-        communicator.sendMessageToBle(bleStartScan);
+
 
         JSONObject connectDevice = new JSONObject();
         try {
@@ -193,14 +195,16 @@ public class MainActivity extends AppCompatActivity implements bleToPlugin {
 
                     try {
                         Thread.sleep(2000 );
-                        communicator.sendMessageToBle(connectDevice);
-                        Thread.sleep(5000);
-                        communicator.sendMessageToBle(mtu);
-                        Thread.sleep(2000);
-                        communicator.sendMessageToBle(phy);
-                        Thread.sleep(2000);
-                        communicator.sendMessageToBle(priority);
-                        Thread.sleep(3000);
+                        communicator.sendMessageToBle(bleIntialiation);
+                        communicator.sendMessageToBle(bleStartScan);
+//                        communicator.sendMessageToBle(connectDevice);
+//                        Thread.sleep(5000);
+//                        communicator.sendMessageToBle(mtu);
+//                        Thread.sleep(2000);
+//                        communicator.sendMessageToBle(phy);
+//                        Thread.sleep(2000);
+//                        communicator.sendMessageToBle(priority);
+//                        Thread.sleep(3000);
 
                     } catch (InterruptedException e) {
                         throw new RuntimeException(e);
@@ -250,6 +254,12 @@ public class MainActivity extends AppCompatActivity implements bleToPlugin {
 
             // can do what ever we want
         }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        communicator.ondestroyCallback();
     }
 
     @SuppressLint("BatteryLife")
@@ -355,6 +365,11 @@ public class MainActivity extends AppCompatActivity implements bleToPlugin {
 
     @Override
     public void blesetPriority(JSONObject response) {
+        Log.e(Constants.Log,response.toString());
+    }
+
+    @Override
+    public void otaProgress(JSONObject response) {
         Log.e(Constants.Log,response.toString());
     }
 }

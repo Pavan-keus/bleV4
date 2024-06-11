@@ -1,6 +1,10 @@
 package Ble;
 
+import android.content.ComponentName;
 import android.content.Context;
+import android.content.Intent;
+import android.content.ServiceConnection;
+import android.os.IBinder;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -8,19 +12,28 @@ import org.json.JSONObject;
 import java.util.HashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.Semaphore;
 
 public class pluginCommunicator extends Thread {
     Context context;
     bleToPlugin pluginInterface;
+    otaToPlugin otaPluginInterface;
 
     bleUtil bleUtilThread;
-
-
-    public pluginCommunicator(Context context, bleToPlugin pluginInterface){
+    private OtaForeground otaForegroundService;
+    private boolean isBound = true;
+    Intent serviceIntent;
+    OtaForeground.BinderServicClass binder;
+    public pluginCommunicator(Context context, bleToPlugin pluginInterface,otaToPlugin otaPluginInterface){
         this.context = context;
         this.pluginInterface = pluginInterface;
+        this.otaPluginInterface = otaPluginInterface;
         bleUtilThread = new bleUtil(context);
-        bleUtilThread.start();
+
+         serviceIntent = new Intent(context,OtaForeground.class);
+        context.bindService(serviceIntent,connection,Context.BIND_AUTO_CREATE);
+
+
         Common.pluginCommunicator_Queue = new LinkedBlockingQueue<Communication>(50);
     }
     // check valid message or not if not don't send to ble util
@@ -126,7 +139,42 @@ public class pluginCommunicator extends Thread {
             LogUtil.e(Constants.Error,"Insufficient Fields for processing Message");
         }
     }
+    private final ServiceConnection  connection = new ServiceConnection() {
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder service) {
+            binder = (OtaForeground.BinderServicClass)service;
+            otaForegroundService = binder.getService();
+            isBound = true;
+            if(otaForegroundService.getIsForegroundServicerunning())
+            {
+                Common.bleOperationsObject = otaForegroundService.getBleOperations();
+                LogUtil.e(Constants.Log,"service got rebind with previous data");
+            }
+            else{
+                Common.bleOperationsObject  = new bleOperations(context);
+                LogUtil.e(Constants.Log,"service got rebind with new data");
+                startForegroundService();
+            }
+            bleUtilThread.start();
+        }
 
+        @Override
+        public void onServiceDisconnected(ComponentName name) {
+            isBound = false;
+        }
+    };
+    public void startForegroundService(){
+        binder.getService().setBleOperations(Common.bleOperationsObject);
+        binder.getService().setOtaToPlugin(otaPluginInterface);
+        context.startForegroundService(serviceIntent);
+    }
+    public void ondestroyCallback(){
+        if(isBound){
+            LogUtil.e(Constants.Log,"Unbinding Service");
+            context.unbindService(connection);
+            isBound = false;
+        }
+    }
     // functions to send response to bletoplugin interface
     void sendInitializationResponse(){
         try{
