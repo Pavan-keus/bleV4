@@ -23,9 +23,11 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import Ble.Constants;
+import Ble.LogUtil;
 import Ble.bleToPlugin;
 import Ble.pluginCommunicator;
 import Ble.otaToPlugin;
@@ -194,7 +196,7 @@ public class MainActivity extends AppCompatActivity implements bleToPlugin,otaTo
             public void run() {
 
                     try {
-                        Thread.sleep(2000 );
+                        Thread.sleep(5000 );
                         communicator.sendMessageToBle(bleIntialiation);
                         communicator.sendMessageToBle(bleStartScan);
 //                        communicator.sendMessageToBle(connectDevice);
@@ -219,7 +221,6 @@ public class MainActivity extends AppCompatActivity implements bleToPlugin,otaTo
         boolean permissionsGranted = true;
         permissionsToRequest.add(Manifest.permission.ACCESS_COARSE_LOCATION);
         permissionsToRequest.add(Manifest.permission.ACCESS_FINE_LOCATION);
-        permissionsToRequest.add(Manifest.permission.BLUETOOTH_ADMIN);
 
         if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.S){
             permissionsToRequest.add(Manifest.permission.BLUETOOTH_SCAN);
@@ -269,7 +270,7 @@ public class MainActivity extends AppCompatActivity implements bleToPlugin,otaTo
 
         if (requestCode == REQUEST_PERMISSIONS_CODE) {
             boolean allPermissionsGranted = true;
-
+            LogUtil.e("onRequestPermissionsResult", Arrays.toString(grantResults));
             for (int result : grantResults) {
                 if (result != PackageManager.PERMISSION_GRANTED) {
                     allPermissionsGranted = false;

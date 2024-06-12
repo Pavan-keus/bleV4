@@ -10,4 +10,5 @@ public class Common {
       static BlockingQueue<Communication> pluginCommunicator_Queue;
       static  Semaphore bleOperationSemaphore;
       static bleOperations bleOperationsObject;
+      static BlockingQueue<Communication> otaCommunication_Queue;
 }

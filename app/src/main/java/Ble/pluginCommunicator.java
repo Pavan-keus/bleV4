@@ -9,6 +9,13 @@ import android.os.IBinder;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.BufferedReader;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.HashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -30,7 +37,7 @@ public class pluginCommunicator extends Thread {
         this.otaPluginInterface = otaPluginInterface;
         bleUtilThread = new bleUtil(context);
 
-         serviceIntent = new Intent(context,OtaForeground.class);
+        serviceIntent = new Intent(context,OtaForeground.class);
         context.bindService(serviceIntent,connection,Context.BIND_AUTO_CREATE);
 
 
@@ -148,12 +155,13 @@ public class pluginCommunicator extends Thread {
             if(otaForegroundService.getIsForegroundServicerunning())
             {
                 Common.bleOperationsObject = otaForegroundService.getBleOperations();
+                Common.bleOperationSemaphore = otaForegroundService.getSemaphore();
                 LogUtil.e(Constants.Log,"service got rebind with previous data");
             }
             else{
                 Common.bleOperationsObject  = new bleOperations(context);
                 LogUtil.e(Constants.Log,"service got rebind with new data");
-                startForegroundService();
+                //startForegroundService();
             }
             bleUtilThread.start();
         }
@@ -166,6 +174,7 @@ public class pluginCommunicator extends Thread {
     public void startForegroundService(){
         binder.getService().setBleOperations(Common.bleOperationsObject);
         binder.getService().setOtaToPlugin(otaPluginInterface);
+        binder.getService().setSemaphore(Common.bleOperationSemaphore);
         context.startForegroundService(serviceIntent);
     }
     public void ondestroyCallback(){
@@ -264,7 +273,7 @@ public class pluginCommunicator extends Thread {
                     JSONObject deviceProperties = new JSONObject();
                     deviceProperties.put("Name",device.deviceName);
                     deviceProperties.put("Address",key);
-                    deviceProperties.put("RSSI",device.rssi);
+                    deviceProperties.put("Rssi",device.rssi);
                     devices.put(deviceProperties);
                 }
                 deviceData.put("Devices",devices);
@@ -542,6 +551,91 @@ public class pluginCommunicator extends Thread {
         }
         catch (Exception e){
             LogUtil.e(Constants.Error,"Error in sending notify characteristic data Response"+e.getMessage());
+        }
+    }
+    private void sendMessagetoPluginCommunicator(int Messagetype,int fromMessage,int messageSize,Object[] data){
+        Communication Message = new Communication();
+        Message.messageType = Messagetype;
+        Message.fromMessage = fromMessage;
+        Message.messageSize = messageSize;
+        Message.data = data;
+        try{
+            Common.pluginCommunicator_Queue.put(Message);
+        }
+        catch (Exception e){
+            LogUtil.e(Constants.Error,"Error in sending Message to Plugin Communicator"+e.getMessage());
+        }
+    }
+    private void sendMessagetoPluginCommunicator(int Messagetype,int fromMessage,int messageSize,Object[] data,int Error){
+        Communication Message = new Communication();
+        Message.messageType = Messagetype;
+        Message.fromMessage = fromMessage;
+        Message.messageSize = messageSize;
+        Message.data = data;
+        Message.Error = Error;
+        try{
+            Common.pluginCommunicator_Queue.put(Message);
+        }
+        catch (Exception e){
+            LogUtil.e(Constants.Error,"Error in sending Message to Plugin Communicator"+e.getMessage());
+        }
+    }
+    byte[] getFilecontent(String requestUrl,String queryParams){
+        HttpURLConnection urlConnection = null;
+        try {
+            URL url = new URL(requestUrl + "?" + queryParams);
+            urlConnection = (HttpURLConnection) url.openConnection();
+            urlConnection.setRequestMethod("POST");
+            urlConnection.setDoOutput(true);  // This is optional as you're using GET parameters
+            // For a POST request, you don't necessarily need to send a body if you're sending parameters in URL
+            try (OutputStream os = urlConnection.getOutputStream()) {
+                byte[] input = queryParams.getBytes("utf-8");
+                os.write(input, 0, input.length);
+            }
+            int responseCode = urlConnection.getResponseCode();
+            if (responseCode == HttpURLConnection.HTTP_OK) { // success
+                BufferedReader in = new BufferedReader(new InputStreamReader(urlConnection.getInputStream()));
+                String inputLine;
+                StringBuffer response = new StringBuffer();
+                while ((inputLine = in.readLine()) != null) {
+                    response.append(inputLine);
+                }
+                in.close();
+                JSONObject object = new JSONObject(response.toString());
+                JSONArray data = object.getJSONObject("data").getJSONArray("data");
+                byte binarydata[]= new byte[data.length()];
+
+                for(int i=0;i<data.length();i++)
+                    binarydata[i] = (byte)data.getInt(i);
+                return  binarydata;
+            } else {
+                System.out.println("POST request did not work.");
+                return null;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        } finally {
+            if (urlConnection != null) {
+                urlConnection.disconnect();
+            }
+        }
+    }
+    void sendMessageToOta(String deviceAddress, String deviceType,String deviceCategory, String version, String token, String branch){
+        if(Common.bleOperationsObject.isdeviceExists(deviceAddress) && Common.bleOperationsObject.isConnected(deviceAddress)){
+            String requestUrl = "http://iot-operations.keus.in:6060/api/getOtaBinFile";
+            String queryParams = "deviceCategory="+deviceCategory+"&deviceType="+deviceType+"&token="+token+"&version="+version+"&branch="+branch;
+            byte[] filecontent = getFilecontent(requestUrl,queryParams);
+            if(filecontent != null){
+                binder.getService().doOtaFor(deviceAddress,filecontent);
+                startForegroundService();
+            }
+            else{
+                sendMessagetoPluginCommunicator(Constants.OTA_RESPONSE,Constants.MessageFromOtaUtil,1,new Object[]{deviceAddress},Constants.FAILED_TO_FETCH_FILE_CONTENT);
+            }
+        }
+        else{
+            sendMessagetoPluginCommunicator(Constants.OTA_RESPONSE,Constants.MessageFromOtaUtil,1,new Object[]{deviceAddress},Constants.BLE_ADDRESS_NOT_FOUND);
         }
     }
     @Override

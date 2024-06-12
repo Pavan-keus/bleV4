@@ -28,6 +28,7 @@ public class Constants {
     public final static int  SET_PRIORITY_REQUEST           = 11;
     public final static int  SET_MTU_REQUEST                = 12;
     public final static int  SET_PHY_REQUEST                = 13;
+    public final static int  OTA_REQUEST                    = 14;
 
 
 
@@ -49,6 +50,8 @@ public class Constants {
     final static int SET_PRIORITY_RESPONSE       = 62;
     final static int SET_MTU_RESPONSE            = 63;
     final static int SET_PHY_RESPONSE            = 64;
+    final static int OTA_RESPONSE                = 65;
+
 
     // error constants
     final static int BLE_NOT_ENABLE            = 100;
@@ -56,6 +59,7 @@ public class Constants {
     final static int BLE_NO_SCANNING_DATA      = 102;
     final static int BLE_ADDRESS_NOT_FOUND     = 103;
     final static int BLE_CHARACTER_NOT_FOUND   = 104;
+    final static int FAILED_TO_FETCH_FILE_CONTENT = 105;
 
     // other Constants
 

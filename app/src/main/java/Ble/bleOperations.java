@@ -87,10 +87,19 @@ public class bleOperations {
          Message.messageSize = Messagesize;
          if(FromMessage == Constants.MessageFromBleUtil){
              try {
-                 LogUtil.e(Constants.Log,"Message send from operations");
+                 LogUtil.e(Constants.Log,"Message send from operations to util");
                  Common.pluginCommunicator_Queue.put(Message);
 
              } catch (InterruptedException e) {
+                 LogUtil.e(Constants.Error, "SendMessage Failed: "+e.getMessage());
+             }
+         }
+         else if(FromMessage == Constants.MessageFromOtaUtil){
+             try {
+                 LogUtil.e(Constants.Log, "Message send from operations to ota util");
+                 Common.otaCommunication_Queue.put(Message);
+             }
+             catch (Exception e){
                  LogUtil.e(Constants.Error, "SendMessage Failed: "+e.getMessage());
              }
          }
@@ -164,7 +173,14 @@ public class bleOperations {
         SendMessage(Constants.DEINITIALIZE_BLE_RESPONSE,null,0,MessageFrom);
         ReleaseUtilSemaphore();
     }
+    public boolean isdeviceExists(String Address){
+        return devicesList.containsKey(Address);
+    }
+    public boolean isConnected(String Address){
+        return devicesList.get(Address).isConnected();
+    }
     void addDeviceToList(String deviceAddress, String DeviceName, int rssi, BluetoothDevice bleDevice){
+        LogUtil.e(Constants.Log,deviceAddress+" "+DeviceName+" "+rssi);
         if(devicesList.containsKey(deviceAddress)){
             devicesList.get(deviceAddress).setDeviceName(DeviceName != null ? DeviceName : "Ble Device");
             devicesList.get(deviceAddress).setRssi(rssi);
