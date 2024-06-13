@@ -160,6 +160,7 @@ public class pluginCommunicator extends Thread {
             }
             else{
                 Common.bleOperationsObject  = new bleOperations(context);
+                Common.bleOperationSemaphore = new Semaphore(1);
                 LogUtil.e(Constants.Log,"service got rebind with new data");
                 //startForegroundService();
             }
@@ -621,7 +622,7 @@ public class pluginCommunicator extends Thread {
             }
         }
     }
-    void sendMessageToOta(String deviceAddress, String deviceType,String deviceCategory, String version, String token, String branch){
+    public void sendMessageToOta(String deviceAddress, String deviceType,String deviceCategory, String version, String token, String branch){
         if(Common.bleOperationsObject.isdeviceExists(deviceAddress) && Common.bleOperationsObject.isConnected(deviceAddress)){
             String requestUrl = "http://iot-operations.keus.in:6060/api/getOtaBinFile";
             String queryParams = "deviceCategory="+deviceCategory+"&deviceType="+deviceType+"&token="+token+"&version="+version+"&branch="+branch;

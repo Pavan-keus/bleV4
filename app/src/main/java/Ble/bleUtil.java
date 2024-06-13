@@ -25,9 +25,12 @@ public class bleUtil extends Thread{
 
             try {
                 Communication Message = Common.bleUtil_Queue.take();
-                Common.bleOperationsObject.isRequested = true;
+
                 LogUtil.e(Constants.Log,"Message Received in Util "+Message.messageType);
+
                 Common.bleOperationSemaphore.acquire();
+                LogUtil.e(Constants.Log,"Semaphore Acquired");
+                Common.bleOperationsObject.isRequested = true;
                 switch (Message.messageType){
                     case Constants.INITIALIZE_BLE_REQUEST:
                         Common.bleOperationsObject.InitializeBle(Message.fromMessage);

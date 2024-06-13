@@ -6,15 +6,16 @@ android {
     namespace = "com.example.blev4"
     compileSdk = 34
 
+
     defaultConfig {
         applicationId = "com.example.blev4"
         minSdk = 29
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
-
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
+
 
     buildTypes {
         release {

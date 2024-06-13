@@ -148,6 +148,11 @@ public class MainActivity extends AppCompatActivity implements bleToPlugin,otaTo
         } catch (JSONException e) {
             throw new RuntimeException(e);
         }
+        JSONObject bleStopScan = new JSONObject();
+        try {
+            bleStopScan.put("Type",Constants.STOPSCAN_REQUEST);
+            bleStopScan.put("Data",new Object[0]);
+        } catch (JSONException e) {}
         String channel = "f000a005-0451-4000-b000-000000000000";
         String sendbeacon = "f000a002-0451-4000-b000-000000000000";
         String ntwkState = "f000a001-0451-4000-b000-000000000000";
@@ -184,36 +189,35 @@ public class MainActivity extends AppCompatActivity implements bleToPlugin,otaTo
             int count = 0;
             @Override
             public void onClick(View v) {
-                if(count %2 == 0)
-                 communicator.sendMessageToBle(connectDevice);
-                else
-                    communicator.sendMessageToBle(disconnectDevice);
-                count++;
+                new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+
+                        try {
+                            Thread.sleep(5000 );
+                            communicator.sendMessageToBle(bleIntialiation);
+                            communicator.sendMessageToBle(bleStartScan);
+                            Thread.sleep(3000);
+                            communicator.sendMessageToBle(connectDevice);
+                            Thread.sleep(6000);
+                            communicator.sendMessageToBle(bleStopScan);
+                            communicator.sendMessageToBle(mtu);
+                            Thread.sleep(1000);
+                            communicator.sendMessageToBle(phy);
+                            communicator.sendMessageToBle(priority);
+                            Thread.sleep(2000);
+                            communicator.sendMessageToOta("0C:EC:80:95:AA:D8","KZIRB01","KZIRB","3.30","ba0b606a-2c2a-4831-aa9b-7501cb9de4e6","main");
+
+
+                        } catch (InterruptedException e) {
+                            throw new RuntimeException(e);
+                        }
+
+                    }
+                }).start();
             }
         });
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
 
-                    try {
-                        Thread.sleep(5000 );
-                        communicator.sendMessageToBle(bleIntialiation);
-                        communicator.sendMessageToBle(bleStartScan);
-//                        communicator.sendMessageToBle(connectDevice);
-//                        Thread.sleep(5000);
-//                        communicator.sendMessageToBle(mtu);
-//                        Thread.sleep(2000);
-//                        communicator.sendMessageToBle(phy);
-//                        Thread.sleep(2000);
-//                        communicator.sendMessageToBle(priority);
-//                        Thread.sleep(3000);
-
-                    } catch (InterruptedException e) {
-                        throw new RuntimeException(e);
-                    }
-
-            }
-        }).start();
         checkAndRequestPermissions();
     }
     @SuppressLint("BatteryLife")

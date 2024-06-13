@@ -68,7 +68,7 @@ public class bleOperations {
     Timer scanDataUpdateTimer = new Timer();
     public bleOperations(Context context){
         this.ApplicationContext = context;
-        Common.bleOperationSemaphore = new Semaphore(1);
+
         intializeScanCallback();
     }
     void ReleaseUtilSemaphore(){
@@ -77,6 +77,7 @@ public class bleOperations {
             return;
         isRequested = false;
         Common.bleOperationSemaphore.release();
+        LogUtil.e(Constants.Log,"Semaphore Released");
     }
     // reply back to the messages
     void SendMessage(int MessageType, Object[] Messagedata, int Messagesize, int FromMessage){
@@ -180,7 +181,7 @@ public class bleOperations {
         return devicesList.get(Address).isConnected();
     }
     void addDeviceToList(String deviceAddress, String DeviceName, int rssi, BluetoothDevice bleDevice){
-        LogUtil.e(Constants.Log,deviceAddress+" "+DeviceName+" "+rssi);
+        //LogUtil.e(Constants.Log,deviceAddress+" "+DeviceName+" "+rssi);
         if(devicesList.containsKey(deviceAddress)){
             devicesList.get(deviceAddress).setDeviceName(DeviceName != null ? DeviceName : "Ble Device");
             devicesList.get(deviceAddress).setRssi(rssi);
@@ -648,6 +649,7 @@ public class bleOperations {
         else{
             SendMessage(Constants.SET_PRIORITY_RESPONSE,new Object[]{DeviceAddress,priority},2,MessageFrom,Constants.BLE_ADDRESS_NOT_FOUND);
         }
+        LogUtil.e(Constants.Log,"priority set Done");
         ReleaseUtilSemaphore();
     }
 
