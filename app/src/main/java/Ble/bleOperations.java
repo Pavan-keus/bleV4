@@ -1,6 +1,7 @@
 package Ble;
 
 
+import static android.bluetooth.BluetoothDevice.PHY_LE_1M;
 import static android.bluetooth.le.ScanSettings.MATCH_MODE_AGGRESSIVE;
 import static android.content.Context.BLUETOOTH_SERVICE;
 
@@ -12,6 +13,10 @@ import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothProfile;
+import android.bluetooth.le.AdvertiseData;
+import android.bluetooth.le.AdvertisingSet;
+import android.bluetooth.le.AdvertisingSetCallback;
+import android.bluetooth.le.AdvertisingSetParameters;
 import android.bluetooth.le.ScanFilter;
 import android.bluetooth.le.ScanRecord;
 import android.bluetooth.le.ScanResult;
@@ -26,6 +31,7 @@ import android.bluetooth.le.BluetoothLeAdvertiser;
 import android.bluetooth.le.BluetoothLeScanner;
 import android.bluetooth.le.ScanCallback;
 import android.content.Context;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
 
@@ -41,7 +47,14 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 
 // this file do all the ble operations. for every ble operation there will be a callback available to register
-
+class AdvertisingData{
+    byte[] data;
+    int timer;
+    public AdvertisingData(byte[] data,int timer){
+        this.data = data;
+        this.timer = timer;
+    }
+};
 @SuppressLint("MissingPermission")
 public class bleOperations {
     private static final ParcelUuid SERVICE_UUID = ParcelUuid.fromString("00001190-0000-1000-8000-00805F9B34FB");
@@ -50,7 +63,10 @@ public class bleOperations {
     private BluetoothManager bluetoothManager = null;
     private BluetoothAdapter bluetoothAdapter = null;
     private BluetoothLeAdvertiser bluetoothLeAdvertiser = null;
+    private AdvertisingSetCallback bluetoothAdvertisingCallback;
     private BluetoothLeScanner bluetoothLeScanner = null;
+    private AdvertisingSetParameters bluetoothLeParameter = null;
+    private AdvertiseData bluetoothLeData = null;
     private final AdvertiseCallback advertiseCallback = null;
     private ScanCallback scanCallback = null;
     private final boolean isFilteringEnabled = false;
@@ -65,12 +81,43 @@ public class bleOperations {
     private final ConcurrentHashMap<String,ScanningDevices> devicesList = new ConcurrentHashMap<String,ScanningDevices>();
     private final Queue<ScanResult> scanResultQueue = new LinkedList<ScanResult>();
     final bleGattCallbackClass gattCallback = new bleGattCallbackClass();
+
+    Queue<AdvertisingData> advertisingListQueue = new LinkedList<AdvertisingData>();
     Timer scanDataUpdateTimer = new Timer();
+    Timer advertisingTimer = new Timer();
+    boolean isAdvertisingTimerRunning = false;
     public bleOperations(Context context){
         this.ApplicationContext = context;
 
         intializeScanCallback();
+        intializeAdvertisingCallback();
     }
+
+    private void intializeAdvertisingCallback() {
+        bluetoothAdvertisingCallback = new AdvertisingSetCallback() {
+            @Override
+            public void onAdvertisingSetStarted(AdvertisingSet advertisingSet, int txPower, int status) {
+                LogUtil.e(Constants.Log, "onAdvertisingSetStarted(): txPower:" + txPower + " , status: "
+                        + status);
+            }
+
+            @Override
+            public void onAdvertisingDataSet(AdvertisingSet advertisingSet, int status) {
+                LogUtil.e(Constants.Log, "onAdvertisingDataSet() :status:" + status);
+            }
+
+            @Override
+            public void onScanResponseDataSet(AdvertisingSet advertisingSet, int status) {
+                LogUtil.e(Constants.Log, "onScanResponseDataSet(): status:" + status);
+            }
+
+            @Override
+            public void onAdvertisingSetStopped(AdvertisingSet advertisingSet) {
+                LogUtil.e(Constants.Log, "onAdvertisingSetStopped():");
+            }
+        };
+    }
+
     void ReleaseUtilSemaphore(){
         // finally release the semaphore on setting up with the message
         if(!isRequested)
@@ -136,6 +183,14 @@ public class bleOperations {
             bluetoothManager = (BluetoothManager) ApplicationContext.getSystemService(BLUETOOTH_SERVICE);
             bluetoothAdapter = bluetoothManager.getAdapter();
             bluetoothLeAdvertiser = bluetoothAdapter.getBluetoothLeAdvertiser();
+            bluetoothLeParameter = (new AdvertisingSetParameters.Builder())
+                    .setLegacyMode(false) // True by default, but set here as a reminder.
+                    .setConnectable(false)
+                    .setInterval(AdvertisingSetParameters.INTERVAL_LOW)
+                    .setTxPowerLevel(AdvertisingSetParameters.TX_POWER_HIGH)
+                    .setPrimaryPhy(PHY_LE_1M)
+                    .setSecondaryPhy(PHY_LE_1M)
+                    .build();
             bluetoothLeScanner = bluetoothAdapter.getBluetoothLeScanner();
             SendMessage(Constants.INITIALIZE_BLE_RESPONSE,null,0,MessageFrom);
         }
@@ -160,6 +215,7 @@ public class bleOperations {
             // Stop BLE advertising if it is ongoing
             bluetoothLeAdvertiser.stopAdvertising(advertiseCallback);
             bluetoothLeAdvertiser = null;
+            advertisingListQueue.clear();
         }
 
         if (bluetoothLeScanner != null && scanCallback!=null) {
@@ -675,6 +731,38 @@ public class bleOperations {
             SendMessage(Constants.SET_PHY_RESPONSE,new Object[]{DeviceAddress,phy},2,MessageFrom,Constants.BLE_ADDRESS_NOT_FOUND);
             ReleaseUtilSemaphore();
         }
+    }
+    synchronized void startAdvertising(){
+        if(isAdvertisingTimerRunning)
+            return;
+        AdvertisingData data;
+        if(advertisingListQueue.size() > 0)
+            data = advertisingListQueue.remove();
+        else
+            return;
+        bluetoothLeData = new AdvertiseData.Builder().setIncludeDeviceName(false).addManufacturerData(0x1190,data.data).build();
+        bluetoothLeAdvertiser.startAdvertisingSet(bluetoothLeParameter, bluetoothLeData, null, null, null, bluetoothAdvertisingCallback);
+        advertisingTimer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+
+                bluetoothLeAdvertiser.stopAdvertisingSet(bluetoothAdvertisingCallback);
+                isAdvertisingTimerRunning = false;
+                startAdvertising();
+            }
+        },data.timer);
+        isAdvertisingTimerRunning = true;
+    }
+    void sendAdvertising(int MessageFrom, byte []data, int Timeout){
+        if(bluetoothLeAdvertiser != null){
+              advertisingListQueue.add(new AdvertisingData(data,Timeout));
+              startAdvertising();
+              SendMessage(Constants.ADVERTISE_RESPONSE,null,0,MessageFrom);
+        }
+        else{
+            SendMessage(Constants.ADVERTISE_RESPONSE,null,0,Constants.MessageFromBleUtil,Constants.BLE_NOT_INITIALIZED);
+        }
+        ReleaseUtilSemaphore();
     }
     String getDeviceName(String Address){
         return devicesList.get(Address).getDeviceName();

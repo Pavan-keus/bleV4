@@ -30,6 +30,7 @@ public class Constants {
     public final static int  SET_PHY_REQUEST                = 13;
     public final static int  OTA_REQUEST                    = 14;
     public final static int  DISCOVER_SERVICE_REQUEST       = 15;
+    public final static int  ADVERTISE_REQUEST              = 16;
 
 
 
@@ -53,6 +54,7 @@ public class Constants {
     final static int SET_PHY_RESPONSE            = 64;
     final static int OTA_RESPONSE                = 65;
     final static int DISCOVER_SERVICE_RESPONSE   = 66;
+    final static int ADVERTISE_RESPONSE          = 67;
 
 
     // error constants

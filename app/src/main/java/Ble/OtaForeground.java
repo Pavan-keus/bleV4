@@ -256,10 +256,10 @@ public class OtaForeground extends Service {
                                                                     JSONObject jsonObject = new JSONObject();
                                                                     JSONObject data = new JSONObject();
                                                                     try {
-                                                                        jsonObject.put("Type",Constants.OTA_RESPONSE);
-                                                                        data.put("Progress",currentProgress);
+                                                                        jsonObject.put("type",Constants.OTA_RESPONSE);
+                                                                        data.put("progress",currentProgress);
                                                                         data.put("bleAddress",bleAddress);
-                                                                        jsonObject.put("Data",data);
+                                                                        jsonObject.put("data",data);
                                                                         otaToPlugin.otaProgress(jsonObject);
                                                                     } catch (JSONException e) {
                                                                         throw new RuntimeException(e);

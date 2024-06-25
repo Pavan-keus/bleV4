@@ -4,6 +4,9 @@ package Ble;
 
 import android.content.Context;
 import android.util.Log;
+
+import org.json.JSONArray;
+
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.Semaphore;
 
@@ -74,9 +77,17 @@ public class bleUtil extends Thread{
                     case Constants.DISCOVER_SERVICE_REQUEST:
                         Common.bleOperationsObject.discoveryService(Message.fromMessage, (String) Message.data[0]);
                         break;
+                    case Constants.ADVERTISE_REQUEST:
+                        JSONArray data2 = (JSONArray) Message.data[0];
+                        byte[] data = new byte[data2.length()];
+                        for(int i=0;i<data2.length();i++){
+                            data[i] = (byte)data2.getInt(i);
+                        }
+                        Common.bleOperationsObject.sendAdvertising(Message.fromMessage,data,(Integer)Message.data[1]);
+                        break;
                 }
-            } catch (InterruptedException e) {
-                LogUtil.e(Constants.Error,"error caught in util Queue");
+            } catch (Exception e) {
+                LogUtil.e(Constants.Error,"error caught in util Queue"+e);
                 Common.bleOperationSemaphore.release();
                 Common.bleOperationsObject.isRequested = false;
             }

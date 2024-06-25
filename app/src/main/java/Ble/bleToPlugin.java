@@ -18,4 +18,5 @@ public interface bleToPlugin {
     void blesetPriority(JSONObject response);
     void bleNotifyCharacteristicData(JSONObject response);
     void bleServiceDiscoveryData(JSONObject response);
+    void bleAdvertiseData(JSONObject response);
 }

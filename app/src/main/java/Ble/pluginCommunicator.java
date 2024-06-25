@@ -141,6 +141,13 @@ public class pluginCommunicator extends Thread {
                         bleMessage.data = new Object[]{message.getJSONObject("data").getString("deviceId")};
                         bleMessage.messageSize = 1;
                         Common.bleUtil_Queue.put(bleMessage);
+                        break;
+                    case Constants.ADVERTISE_REQUEST:
+                        bleMessage.messageType = Constants.ADVERTISE_REQUEST;
+                        bleMessage.data = new Object[]{message.getJSONObject("data").getJSONArray("data"),(Integer)message.getJSONObject("data").getInt("time")};
+                        bleMessage.messageSize = 2;
+                        Common.bleUtil_Queue.put(bleMessage);
+                        break;
                 }
             }catch (Exception e){
                 LogUtil.e(Constants.Error,"error in processing Communication"+e.getMessage());
@@ -161,6 +168,7 @@ public class pluginCommunicator extends Thread {
             {
                 Common.bleOperationsObject = otaForegroundService.getBleOperations();
                 Common.bleOperationSemaphore = otaForegroundService.getSemaphore();
+                binder.getService().setOtaToPlugin(otaPluginInterface);
                 LogUtil.e(Constants.Log,"service got rebind with previous data");
             }
             else{
@@ -284,6 +292,7 @@ public class pluginCommunicator extends Thread {
                     deviceProperties.put("name",device.deviceName);
                     deviceProperties.put("address",key);
                     deviceProperties.put("rssi",device.rssi);
+                    deviceProperties.put("isConnected",device.isConnected);
                     devices.put(deviceProperties);
                 }
                 deviceData.put("devices",devices);
@@ -680,6 +689,32 @@ public class pluginCommunicator extends Thread {
          }
     }
 
+    void sendAdvertiseResponse(){
+         try{
+             JSONObject response = new JSONObject();
+             response.put("type",Constants.ADVERTISE_RESPONSE);
+             JSONObject data = new JSONObject();
+             data.put("success",true);
+             response.put("data",data);
+             pluginInterface.bleAdvertiseData(response);
+         }catch (Exception e){
+             LogUtil.e(Constants.Error,"Error in sending Advertise Response"+e.getMessage());
+         }
+    }
+    void sendAdvertiseResponse(int error){
+        try{
+            JSONObject response = new JSONObject();
+            response.put("type",Constants.ADVERTISE_RESPONSE);
+            JSONObject data = new JSONObject();
+            data.put("success",false);
+            data.put("reason",error);
+            response.put("data",data);
+            pluginInterface.bleAdvertiseData(response);
+        }catch (Exception e){
+            LogUtil.e(Constants.Error,"Error in sending Advertise Response"+e.getMessage());
+            }
+    }
+
     @Override
     public void run() {
         LogUtil.e(Constants.Log,"plugin Communicator Thread Started");
@@ -770,6 +805,12 @@ public class pluginCommunicator extends Thread {
                             sendServiceDiscoveryResponse((String)message.data[0]);
                         else
                             sendServiceDiscoveryResponse((String)message.data[0],message.Error);
+                        break;
+                    case Constants.ADVERTISE_RESPONSE:
+                        if(message.Error == 0)
+                            sendAdvertiseResponse();
+                        else
+                            sendAdvertiseResponse(message.Error);
 
                 }
             } catch (Exception e) {

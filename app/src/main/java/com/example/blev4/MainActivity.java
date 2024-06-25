@@ -55,6 +55,21 @@ public class MainActivity extends AppCompatActivity implements bleToPlugin,otaTo
         };
         return object;
     }
+    JSONObject getAdv(byte data[] ,int time){
+        JSONObject object = new JSONObject();
+        try{
+            object.put("type",Constants.ADVERTISE_REQUEST);
+            JSONObject dataObject = new JSONObject();
+
+            dataObject.put("data",new JSONArray(data));
+            dataObject.put("time",time);
+            object.put("data",dataObject);
+        }
+        catch (Exception e){
+            e.printStackTrace();
+        }
+        return object;
+    }
     JSONObject read(String bleaddress,String characteristic) {
         JSONObject object = new JSONObject();
         try {
@@ -136,8 +151,8 @@ public class MainActivity extends AppCompatActivity implements bleToPlugin,otaTo
         // ble Initialziation
         JSONObject bleIntialiation = new JSONObject();
         try {
-            bleIntialiation.put("Type",Constants.INITIALIZE_BLE_REQUEST);
-            bleIntialiation.put("Data",new Object[0]);
+            bleIntialiation.put("type",Constants.INITIALIZE_BLE_REQUEST);
+            bleIntialiation.put("data",new Object[0]);
         } catch (JSONException e) {
             throw new RuntimeException(e);
         }
@@ -196,17 +211,9 @@ public class MainActivity extends AppCompatActivity implements bleToPlugin,otaTo
                         try {
                             Thread.sleep(5000 );
                             communicator.sendMessageToBle(bleIntialiation);
-                            communicator.sendMessageToBle(bleStartScan);
-                            Thread.sleep(3000);
-                            communicator.sendMessageToBle(connectDevice);
-                            Thread.sleep(6000);
-                            communicator.sendMessageToBle(bleStopScan);
-                            communicator.sendMessageToBle(mtu);
-                            Thread.sleep(1000);
-                            communicator.sendMessageToBle(phy);
-                            communicator.sendMessageToBle(priority);
-                            Thread.sleep(2000);
-                            communicator.sendMessageToOta("0C:EC:80:95:AA:D8","KZIRB01","KZIRB","3.30","ba0b606a-2c2a-4831-aa9b-7501cb9de4e6","main");
+                            communicator.sendMessageToBle(getAdv(new byte[]{1,2},2000));
+                            communicator.sendMessageToBle(getAdv(new byte[]{1,2},2000));
+                            communicator.sendMessageToBle(getAdv(new byte[]{1,2},2000));
 
 
                         } catch (InterruptedException e) {
@@ -371,6 +378,11 @@ public class MainActivity extends AppCompatActivity implements bleToPlugin,otaTo
     @Override
     public void bleServiceDiscoveryData(JSONObject response) {
 
+    }
+
+    @Override
+    public void bleAdvertiseData(JSONObject response) {
+        Log.e(Constants.Log,response.toString());
     }
 
     @Override
