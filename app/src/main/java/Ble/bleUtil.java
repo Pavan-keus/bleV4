@@ -71,6 +71,9 @@ public class bleUtil extends Thread{
                     case Constants.SET_PRIORITY_REQUEST:
                         Common.bleOperationsObject.setConnectionPriority(Message.fromMessage,(String)Message.data[0],(Integer) Message.data[1]);
                         break;
+                    case Constants.DISCOVER_SERVICE_REQUEST:
+                        Common.bleOperationsObject.discoveryService(Message.fromMessage, (String) Message.data[0]);
+                        break;
                 }
             } catch (InterruptedException e) {
                 LogUtil.e(Constants.Error,"error caught in util Queue");

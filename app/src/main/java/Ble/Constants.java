@@ -29,6 +29,7 @@ public class Constants {
     public final static int  SET_MTU_REQUEST                = 12;
     public final static int  SET_PHY_REQUEST                = 13;
     public final static int  OTA_REQUEST                    = 14;
+    public final static int  DISCOVER_SERVICE_REQUEST       = 15;
 
 
 
@@ -51,6 +52,7 @@ public class Constants {
     final static int SET_MTU_RESPONSE            = 63;
     final static int SET_PHY_RESPONSE            = 64;
     final static int OTA_RESPONSE                = 65;
+    final static int DISCOVER_SERVICE_RESPONSE   = 66;
 
 
     // error constants
@@ -60,6 +62,7 @@ public class Constants {
     final static int BLE_ADDRESS_NOT_FOUND     = 103;
     final static int BLE_CHARACTER_NOT_FOUND   = 104;
     final static int FAILED_TO_FETCH_FILE_CONTENT = 105;
+    final static int FAILED_TO_DISCOVER_SERVICE = 106;
 
     // other Constants
 

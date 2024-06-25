@@ -153,6 +153,8 @@ public class OtaForeground extends Service {
                             try {
 
                                 Communication communication = Common.otaCommunication_Queue.take();
+                                acquireSemaphore();
+                                bleOperations.isRequested = true;
                                 Thread.sleep(10);
 
                                 LogUtil.d(Constants.Log,"Received Message in ota queue"+communication.messageType);
@@ -210,6 +212,7 @@ public class OtaForeground extends Service {
                                                     break;
                                                     case 0x04:{
                                                         LogUtil.e(Constants.Log,"OTA Completed");
+                                                        releaseSemaphore();
                                                         destroyService();
                                                     }
                                                     break;
@@ -271,6 +274,7 @@ public class OtaForeground extends Service {
                                             LogUtil.d(Constants.Log, "Error in OTA failed to write characteristics");
                                             throw new RuntimeException("Error in OTA");
                                         }
+                                        releaseSemaphore();
                                         break;
                                     default:
                                         LogUtil.d(Constants.Log,"Unknown Message in ota queue"+communication.messageType);

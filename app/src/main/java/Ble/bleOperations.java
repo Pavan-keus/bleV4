@@ -399,9 +399,6 @@ public class bleOperations {
                 devicesList.get(Addresss).setBleDevice(gatt);
                 SendMessage(Constants.CONNECT_RESPONSE,new Object[]{gatt.getDevice().getAddress()},1,Constants.MessageFromBleUtil);
                 ReleaseUtilSemaphore();
-                gatt.discoverServices();
-
-
             }
             else if(newState == BluetoothProfile.STATE_DISCONNECTED){
                 LogUtil.e(Constants.Log,"Device Disconnected"+Addresss);
@@ -431,12 +428,14 @@ public class bleOperations {
                     }
                 }
 
-
+            SendMessage(Constants.DISCOVER_SERVICE_RESPONSE,new Object[]{gatt.getDevice().getAddress()},1,messageFrom);
             }
             else{
                 // device service disconvery failed due to some other reason
                 LogUtil.e(Constants.Error,"Services Discovered Failed");
+                SendMessage(Constants.DISCOVER_SERVICE_RESPONSE,new Object[]{gatt.getDevice().getAddress()},1,Constants.MessageFromBleUtil,Constants.FAILED_TO_DISCOVER_SERVICE);
             }
+            ReleaseUtilSemaphore();
             // device got succesfully connected leave the semaphore
 
         }
@@ -528,6 +527,18 @@ public class bleOperations {
              SendMessage(Constants.CONNECT_RESPONSE,new Object[]{DeviceAddress},1,MessageFrom,Constants.BLE_ADDRESS_NOT_FOUND);
              ReleaseUtilSemaphore();
          }
+    }
+
+    void discoveryService(int MessageFrom,String DeviceAddress){
+        BluetoothGatt gatt = getDeviceGatt(DeviceAddress);
+        if(gatt!=null){
+            gattCallback.messageFrom = MessageFrom;
+            gatt.discoverServices();
+        }
+        else{
+            SendMessage(Constants.DISCOVER_SERVICE_RESPONSE,new Object[]{DeviceAddress},1,MessageFrom,Constants.BLE_ADDRESS_NOT_FOUND);
+            ReleaseUtilSemaphore();
+        }
     }
     void DisconnectDevice(int MessageFrom,String DeviceAddress){
          BluetoothGatt gatt = getDeviceGatt(DeviceAddress);
@@ -665,5 +676,6 @@ public class bleOperations {
             ReleaseUtilSemaphore();
         }
     }
+
 }
 

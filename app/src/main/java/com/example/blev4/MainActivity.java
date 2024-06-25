@@ -369,6 +369,11 @@ public class MainActivity extends AppCompatActivity implements bleToPlugin,otaTo
     }
 
     @Override
+    public void bleServiceDiscoveryData(JSONObject response) {
+
+    }
+
+    @Override
     public void blesetPriority(JSONObject response) {
         Log.e(Constants.Log,response.toString());
     }
