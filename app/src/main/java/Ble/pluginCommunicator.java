@@ -638,6 +638,7 @@ public class pluginCommunicator extends Thread {
             byte[] filecontent = getFilecontent(requestUrl,queryParams);
             if(filecontent != null){
                 binder.getService().doOtaFor(deviceAddress,filecontent);
+                binder.getService().setUpdatingVersion(version);
                 startForegroundService();
             }
             else{

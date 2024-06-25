@@ -676,6 +676,9 @@ public class bleOperations {
             ReleaseUtilSemaphore();
         }
     }
+    String getDeviceName(String Address){
+        return devicesList.get(Address).getDeviceName();
+    }
 
 }
 

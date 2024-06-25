@@ -40,6 +40,16 @@ public class OtaForeground extends Service {
     public static final String CHANNEL_ID = "ota_progress_channel";
     byte []fileContent;
     String bleAddress;
+
+    public String getUpdatingVersion() {
+        return UpdatingVersion;
+    }
+
+    public void setUpdatingVersion(String updatingVersion) {
+        UpdatingVersion = updatingVersion;
+    }
+
+    String UpdatingVersion = "";
     int TotalBlocks;
     private final String IMAGE_IDENTIFY = "f000ffc1-0451-4000-b000-000000000000";
     private final String IMAGE_BLOCK = "f000ffc2-0451-4000-b000-000000000000";
@@ -112,9 +122,9 @@ public class OtaForeground extends Service {
          RemoteViews remoteViews;
          // notification code
         remoteViews = new RemoteViews(getPackageName(),R.layout.notification);
-        remoteViews.setTextViewText(R.id.deviceName,"KZirb");
+        remoteViews.setTextViewText(R.id.deviceName,bleOperations.getDeviceName(bleAddress));
         remoteViews.setTextViewText(R.id.progress,"0%");
-        remoteViews.setTextViewText(R.id.updating,"3.52");
+        remoteViews.setTextViewText(R.id.updating,UpdatingVersion);
         remoteViews.setProgressBar(R.id.progressBar,100,0,false);
         remoteViews.setImageViewResource(R.id.Cancel_Icon,R.drawable.cancel_24px);
 
