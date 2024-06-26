@@ -158,8 +158,8 @@ public class MainActivity extends AppCompatActivity implements bleToPlugin,otaTo
         }
         JSONObject bleStartScan = new JSONObject();
         try {
-            bleStartScan.put("Type",Constants.STARTSCAN_REQUEST);
-            bleStartScan.put("Data",new Object[0]);
+            bleStartScan.put("type",Constants.STARTSCAN_REQUEST);
+            bleStartScan.put("data",new Object[0]);
         } catch (JSONException e) {
             throw new RuntimeException(e);
         }
@@ -211,10 +211,8 @@ public class MainActivity extends AppCompatActivity implements bleToPlugin,otaTo
                         try {
                             Thread.sleep(5000 );
                             communicator.sendMessageToBle(bleIntialiation);
-                            communicator.sendMessageToBle(getAdv(new byte[]{1,2},2000));
-                            communicator.sendMessageToBle(getAdv(new byte[]{1,2},2000));
-                            communicator.sendMessageToBle(getAdv(new byte[]{1,2},2000));
 
+                            communicator.sendMessageToBle(bleStartScan);
 
                         } catch (InterruptedException e) {
                             throw new RuntimeException(e);

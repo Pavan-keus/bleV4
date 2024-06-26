@@ -293,6 +293,7 @@ public class pluginCommunicator extends Thread {
                     deviceProperties.put("address",key);
                     deviceProperties.put("rssi",device.rssi);
                     deviceProperties.put("isConnected",device.isConnected);
+                    deviceProperties.put("manufacturingData",new JSONArray(device.getManufactureData()));
                     devices.put(deviceProperties);
                 }
                 deviceData.put("devices",devices);

@@ -36,6 +36,7 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.LinkedList;
 import java.util.List;
@@ -236,19 +237,22 @@ public class bleOperations {
     public boolean isConnected(String Address){
         return devicesList.get(Address).isConnected();
     }
-    void addDeviceToList(String deviceAddress, String DeviceName, int rssi, BluetoothDevice bleDevice){
-        //LogUtil.e(Constants.Log,deviceAddress+" "+DeviceName+" "+rssi);
+    void addDeviceToList(String deviceAddress, String DeviceName, int rssi, BluetoothDevice bleDevice,byte[] manufacturedData){
+        LogUtil.e(Constants.Log,deviceAddress+" "+ Arrays.toString(manufacturedData));
         if(devicesList.containsKey(deviceAddress)){
             devicesList.get(deviceAddress).setDeviceName(DeviceName != null ? DeviceName : "Ble Device");
             devicesList.get(deviceAddress).setRssi(rssi);
+            devicesList.get(deviceAddress).setManufactureData(manufacturedData);
         }
         else{
             ScanningDevices device = new ScanningDevices();
             device.setDeviceName(DeviceName != null ? DeviceName : "Ble Device");
             device.setRssi(rssi);
             device.setConnected(false);
+            device.setManufactureData(manufacturedData);
             device.setDiscoveredDevice(bleDevice);
             devicesList.put(deviceAddress,device);
+
         }
         devicesList.get(deviceAddress).setLastScanResultTime(getTimeinMillis());
     }
@@ -259,7 +263,7 @@ public class bleOperations {
             ScanRecord scanRecord = scanresult.getScanRecord();
             String DeviceName = scanresult.getDevice().getName();
             int rssi = scanresult.getRssi();
-            addDeviceToList(deviceAddress,DeviceName,rssi,scanresult.getDevice());
+            addDeviceToList(deviceAddress,DeviceName,rssi,scanresult.getDevice(),scanresult.getScanRecord().getManufacturerSpecificData(0x1190));
         }
     }
     void addorUpdateDevice(ScanResult scanresult){
@@ -274,7 +278,7 @@ public class bleOperations {
              if(!isremovingOffline && scanResultQueue.size() >0){
                  updateDevices();
              }
-             addDeviceToList(deviceAddress,DeviceName,rssi,scanresult.getDevice());
+             addDeviceToList(deviceAddress,DeviceName,rssi,scanresult.getDevice(),scanresult.getScanRecord().getManufacturerSpecificData().get(0x9011));
          }
 
     }
@@ -439,7 +443,6 @@ public class bleOperations {
             ReleaseUtilSemaphore();
 
         }
-
         @Override
         public void onPhyRead(BluetoothGatt gatt, int txPhy, int rxPhy, int status) {
             super.onPhyRead(gatt, txPhy, rxPhy, status);
@@ -458,8 +461,8 @@ public class bleOperations {
             }
             else if(newState == BluetoothProfile.STATE_DISCONNECTED){
                 LogUtil.e(Constants.Log,"Device Disconnected"+Addresss);
-                devicesList.get(Addresss).setConnected(false);
-                devicesList.get(Addresss).setBleDevice(null);
+                devicesList.remove(Addresss);
+                // TODO : Handle the Disconnection Issues i.e when the device got disconnect if the current operation belong to that remove it and release the semaphore.
                 SendMessage(Constants.DISCONNECT_RESPONSE,new Object[]{Addresss},1,Constants.MessageFromBleUtil);
             }
         }
@@ -740,7 +743,7 @@ public class bleOperations {
             data = advertisingListQueue.remove();
         else
             return;
-        bluetoothLeData = new AdvertiseData.Builder().setIncludeDeviceName(false).addManufacturerData(0x1190,data.data).build();
+        bluetoothLeData = new AdvertiseData.Builder().setIncludeDeviceName(true).addManufacturerData(0x1190,data.data).build();
         bluetoothLeAdvertiser.startAdvertisingSet(bluetoothLeParameter, bluetoothLeData, null, null, null, bluetoothAdvertisingCallback);
         advertisingTimer.schedule(new TimerTask() {
             @Override
